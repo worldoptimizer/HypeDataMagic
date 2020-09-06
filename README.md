@@ -6,7 +6,7 @@
 
 <sup>The cover artwork is not hosted in this repository and &copy;opyrighted by Max Ziebell</sup>
 
-This is Hype DataMagic, it allows you to easily add and handle data in your Tumult Hype documents (with live preview).
+This is Hype DataMagic, it allows you to easily add and handle data in your Tumult Hype documents (with live preview). It is easy to deploy and offers partial reactivity.
 
 ## Usage
 
@@ -88,7 +88,7 @@ HypeDataMagic.setData{
 
 ![Hype-Data-Magic-Documentation20](README.assets/Hype-Data-Magic-Documentation20.png)
 
-1. Select an recangle on stage and goto the **Identity** panel
+1. Select a recangle on stage and goto the **Identity** panel
 2. Assign the `data-magic-key` as in the previous nested example to `image.src`. This time there is no array involved, so we can choose the `image` object and directly the `src` property. The new part is to assign the `data-magic-handler` and set it to `image`.
 
 You should now see the image inside the rectangle. The image is set to be contained in the rectangle meaning it scales with the dimensions of the rectangle <sup>3</sup>.
@@ -97,7 +97,7 @@ You should now see the image inside the rectangle. The image is set to be contai
 
 ![Hype-Data-Magic-Documentation19](README.assets/Hype-Data-Magic-Documentation19.png)
 
-1. Select another rectangle and repeat the steps of assigning the `data-magic-key` and the `data-magic-handler`. 
+1. Select another rectangle and repeat assigning the  `data-magic-key` and the  `data-magic-handler`. 
 2. Now we can explore some options you can use when assigning the image data handler:
    *  `data-background-size` can be set to `cover` and defaults to `contain` if not set <sup>4</sup>.
    *  `data-background-position`  can be used to set the *focal point* if the size is set to `cover` <sup>5</sup>. In this example we focus on `50%` from the left and `0%` from the top.
