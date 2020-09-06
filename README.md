@@ -63,7 +63,7 @@ HypeDataMagic.setData{
 
 ![Hype-Data-Magic-Documentation21](README.assets/Hype-Data-Magic-Documentation21.png)
 
-1. Select an recangle on stage and goto the **Identity** panel
+1. Select a recangle on stage and goto the **Identity** panel
 2. This time we set the key to `items[0].location` as `items` is an array we chose the first branch (indexing starts at `0`) and the property `location`
 
 You should now see a preview of the nested data in your rectangle. To see all the data just repeat the last steps and change the property to `relation` and for the other rectangles just change the index from `0` to `1`.
