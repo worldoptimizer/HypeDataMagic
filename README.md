@@ -93,6 +93,15 @@ HypeDataMagic.setData{
 
 You should now see the image inside the rectangle. The image is set to be contained in the rectangle meaning it scales with the dimensions of the rectangle <sup>3</sup>.
 
+### The image data handler and its options
+
+![Hype-Data-Magic-Documentation19](README.assets/Hype-Data-Magic-Documentation19.png)
+
+1. Select another rectangle and repeat the steps of assigning the data-magic-key and the data-magic-handler. 
+2. Now we can explore some options you can use when assigning the image data handler:
+   *  `data-background-size` can be set to `cover` and default to `contain` if not set <sup>4</sup>.
+   *  `data-background-position`  can be used to set the *focal point* if the size is set to `cover` <sup>5</sup>. In this example we focus on `50%` from the left and `0%` from the top.
+
 **Version-History:**  
 `1.0	Initial release under MIT `   
 
@@ -129,3 +138,6 @@ https://github.com/worldoptimizer/HypeCookBook/wiki/Including-external-files-and
 
 *<sup>3. Be aware that Hype Data Magic doesn't include any preloading meaning that the image starts loading when you set the data or reach the scene when previewing.</sup>*
 
+*<sup>4. This options mirrors the CSS property background-size. Read more about possible values at https://www.w3schools.com/cssref/css3_pr_background-size.asp .</sup>*
+
+*<sup>5. This options mirrors the CSS property background-position. Read more about possible values at https://www.w3schools.com/cssref/pr_background-position.asp .</sup>*
