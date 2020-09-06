@@ -6,11 +6,11 @@
 
 <sup>The cover artwork is not hosted in this repository and &copy;opyrighted by Max Ziebell</sup>
 
-### Usage
-
 This is Hype DataMagic, it allows you to easily add and handle data in your Tumult Hype documents (with live preview).
 
-#### Install Hype Data Magic
+## Usage
+
+### Install Hype Data Magic
 
 This step is very easy if you use the CDN version mentioned at the end of this document. Just copy and paste the following line into your Head HTML:
 
@@ -22,7 +22,7 @@ Your done installing it.
 
 *If you don't want to use the CDN Version, please download the repository and add the file -`HypeDataMagic.min.js` to your resource panel. Make sure it's added to Head HTML (Hype default).*
 
-#### Basic example to set data:
+### Basic example to set data:
 
 Open Head HTML and add a script section to it `<script></script>`. Then add the following command in there
 
@@ -33,16 +33,16 @@ Open Head HTML and add a script section to it `<script></script>`. Then add the 
 	});
 ```
 
-#### Bind data to your Hype document:
+### Bind data to your Hype document:
 
 ![Hype-Data-Magic-Documentation22](README.assets/Hype-Data-Magic-Documentation22.png)
 
-1. Select an recangle on stage and goto the **Identy** panel 
+1. Select an recangle on stage and goto the **Identity** panel 
 2. Add a new key to the **Additional HTML Attributes** called `data-magic-key` and set the value to a key we used in `setData` like *name*
 
 You should now see a preview of the data in you Hype document. From now on, when you edit the data in your Head HTML and change back to the scene you will see that updated reflected immediatly. This also works when previewing the Hype document and even works if you update the data in the browser console while previewing.
 
-#### Basic example to set and bind data with nested objects:
+### Basic example to set and bind data with nested objects:
 
 ```javascript
 HypeDataMagic.setData{
@@ -65,12 +65,37 @@ HypeDataMagic.setData{
 
 ![Hype-Data-Magic-Documentation21](README.assets/Hype-Data-Magic-Documentation21.png)
 
-1. Select an recangle on stage and goto the **Identy** panel
+1. Select an recangle on stage and goto the **Identity** panel
 2. This time we set the key to `items[0].location` as `items` is an array we chose the first branch (indexing starts at `0`) and the property `location`
 
 You should now see a preview of the nested data in your rectangle. To see all the data just repeat the last steps and change the property to `relation` and for the other rectangles just change the index from `0` to `1`.
 
+### Using data handler in Hype Data Magic
 
+What you just expirenced was the default data handler (text). It sets the inner HTML content of your rectangle to whatever string it finds when looking up the `data-magic-key` previously set using `HypeDataMagic.setData`. 
+
+There is another built in data handler called `image` and in this example we will look at how we can easily set it up and use it in our Hype document.
+
+First we need example data with an URL pointing to an image:
+
+```javascript
+HypeDataMagic.setData{
+  image:{
+		src:'https://maxziebell.de/wp-content/uploads/2018/11/Max-Ziebell-Konzept-3-e1543533327368.png'
+	},
+});
+```
+
+*If you followed the previous example you can also just add the `image` to the existing data also we actually don't need a nested object  like`image.src` and the URL could also just be directly assigned to the`image` key. This example uses nesting because there are some optional features doing it this way we will discus later.*
+
+![Hype-Data-Magic-Documentation20](README.assets/Hype-Data-Magic-Documentation20.png)
+
+1. Select an recangle on stage and goto the **Identity** panel
+2. Assing the `data-magic-key` as in the previous nested example to `image.src`. This time there is no array involved so we can chose the `image` object and directly the `src` property. The new part is to assign a `data-magic-handler` an assign define it as `image`
+
+You should now see the image inside the rectangle. The image is set to be contained in the rectangle meaning it scales with the dimensions of the rectangle. 
+
+*Be aware that Hype Data Magic doesn't include any preloading meaning that the image starts loading when you set the data or reach the scene when previewing.*
 
 **Version-History:**  
 `1.0	Initial release under MIT `   
@@ -93,7 +118,7 @@ Latest version can be linked into your project using the following in the head s
 ```
 
 Optionally you can also link a SRI version or specific releases. 
-Read more about that on the JsDelivr (CDN) page for this extension at https://www.jsdelivr.com/package/gh/worldoptimizer/HypeAnimationFrame
+Read more about that on the JsDelivr (CDN) page for this extension at https://www.jsdelivr.com/package/gh/worldoptimizer/HypeDataMagic
 
 Learn how to use the latest extension version and how to combine extensions into one file at
 https://github.com/worldoptimizer/HypeCookBook/wiki/Including-external-files-and-Hype-extensions
