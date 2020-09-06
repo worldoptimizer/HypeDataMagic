@@ -105,6 +105,10 @@ You should now see the image inside the rectangle. The image is set to be contai
 **Version-History:**  
 `1.0	Initial release under MIT `   
 
+## Documentation
+
+There is a [JSDoc](https://en.wikipedia.org/wiki/JSDoc) based documentation of the functions at https://doxdox.org/worldoptimizer/HypeDataMagic
+
 Content Delivery Network (CDN)
 --
 
