@@ -97,7 +97,7 @@ You should now see the image inside the rectangle. The image is set to be contai
 
 ![Hype-Data-Magic-Documentation19](README.assets/Hype-Data-Magic-Documentation19.png)
 
-1. Select another rectangle and repeat the steps of assigning the data-magic-key and the data-magic-handler. 
+1. Select another rectangle and repeat the steps of assigning the `data-magic-key` and the `data-magic-handler`. 
 2. Now we can explore some options you can use when assigning the image data handler:
    *  `data-background-size` can be set to `cover` and default to `contain` if not set <sup>4</sup>.
    *  `data-background-position`  can be used to set the *focal point* if the size is set to `cover` <sup>5</sup>. In this example we focus on `50%` from the left and `0%` from the top.
