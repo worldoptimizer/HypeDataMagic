@@ -12,35 +12,33 @@ This is Hype DataMagic, it allows you to easily add and handle data in your Tumu
 
 ### Install Hype Data Magic
 
-This step is very easy if you use the CDN version mentioned at the end of this document. Just copy and paste the following line into your Head HTML:
+This step is effortless if you use the CDN version mentioned at the end of this document. Just copy and paste the following line into your Head HTML:
 
 ```html
 <script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeDataMagic/HypeDataMagic.min.js"></script>
 ```
 
-Your done installing it.
-
-*If you don't want to use the CDN Version, please download the repository and add the file -`HypeDataMagic.min.js` to your resource panel. Make sure it's added to Head HTML (Hype default).*
+You're done installing Hype Data Magic <sup>1</sup>.
 
 ### Basic example to set data:
 
-Open Head HTML and add a script section to it `<script></script>`. Then add the following command in there
+Open Head HTML and add a script section to it `<script></script>`. Then add the following command between the tags:
 
 ``` javascript
-	HypeDataMagic.setData{
-		name: 'Max Ziebell',
-		hello: 'world',
-	});
+HypeDataMagic.setData{
+	name: 'Max Ziebell',
+	hello: 'world',
+});
 ```
 
 ### Bind data to your Hype document:
 
 ![Hype-Data-Magic-Documentation22](README.assets/Hype-Data-Magic-Documentation22.png)
 
-1. Select an recangle on stage and goto the **Identity** panel 
+1. Select a rectangle on stage and goto the **Identity** panel 
 2. Add a new key to the **Additional HTML Attributes** called `data-magic-key` and set the value to a key we used in `setData` like *name*
 
-You should now see a preview of the data in you Hype document. From now on, when you edit the data in your Head HTML and change back to the scene you will see that updated reflected immediatly. This also works when previewing the Hype document and even works if you update the data in the browser console while previewing.
+You should now see a preview of the data in your Hype document. From now on, when you edit the data in your Head HTML and change back to the scene you will see that updated reflected immediately. This also works when previewing the Hype document and even works if you update the data in the browser console while previewing.
 
 ### Basic example to set and bind data with nested objects:
 
@@ -72,11 +70,11 @@ You should now see a preview of the nested data in your rectangle. To see all th
 
 ### Using data handler in Hype Data Magic
 
-What you just expirenced was the default data handler (text). It sets the inner HTML content of your rectangle to whatever string it finds when looking up the `data-magic-key` previously set using `HypeDataMagic.setData`. 
+What you just experienced was the default data handler (text). It sets the inner HTML content of your rectangle to whatever string it finds when looking up the `data-magic-key` previously set using `HypeDataMagic.setData`. 
 
 There is another built in data handler called `image` and in this example we will look at how we can easily set it up and use it in our Hype document.
 
-First we need example data with an URL pointing to an image:
+First we need example data with a URL pointing to an image <sup>2</sup>.
 
 ```javascript
 HypeDataMagic.setData{
@@ -86,16 +84,14 @@ HypeDataMagic.setData{
 });
 ```
 
-*If you followed the previous example you can also just add the `image` to the existing data also we actually don't need a nested object  like`image.src` and the URL could also just be directly assigned to the`image` key. This example uses nesting because there are some optional features doing it this way we will discus later.*
+
 
 ![Hype-Data-Magic-Documentation20](README.assets/Hype-Data-Magic-Documentation20.png)
 
 1. Select an recangle on stage and goto the **Identity** panel
-2. Assing the `data-magic-key` as in the previous nested example to `image.src`. This time there is no array involved so we can chose the `image` object and directly the `src` property. The new part is to assign a `data-magic-handler` an assign define it as `image`
+2. Assign the `data-magic-key` as in the previous nested example to `image.src`. This time there is no array involved, so we can choose the `image` object and directly the `src` property. The new part is to assign the `data-magic-handler` and set it to `image`.
 
-You should now see the image inside the rectangle. The image is set to be contained in the rectangle meaning it scales with the dimensions of the rectangle. 
-
-*Be aware that Hype Data Magic doesn't include any preloading meaning that the image starts loading when you set the data or reach the scene when previewing.*
+You should now see the image inside the rectangle. The image is set to be contained in the rectangle meaning it scales with the dimensions of the rectangle <sup>3</sup>.
 
 **Version-History:**  
 `1.0	Initial release under MIT `   
@@ -122,3 +118,14 @@ Read more about that on the JsDelivr (CDN) page for this extension at https://ww
 
 Learn how to use the latest extension version and how to combine extensions into one file at
 https://github.com/worldoptimizer/HypeCookBook/wiki/Including-external-files-and-Hype-extensions
+
+---
+
+**Footnotes:**
+
+<sup>*1. If you don't want to use the CDN Version, please download the repository and add the file -`HypeDataMagic.min.js` to your resource panel. Make sure it's added to Head HTML (Hype default).*</sup>
+
+*<sup>2. If you followed the previous example you can also just add the `image` to the existing data also we actually don't need a nested object  like`image.src` and the URL could also just be directly assigned to the`image` key. This example uses nesting because there are some optional features doing it this way.</sup>*
+
+*<sup>3. Be aware that Hype Data Magic doesn't include any preloading meaning that the image starts loading when you set the data or reach the scene when previewing.</sup>*
+
