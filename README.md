@@ -102,6 +102,18 @@ You should now see the image inside the rectangle. The image is set to be contai
    *  `data-background-size` can be set to `cover` and defaults to `contain` if not set <sup>4</sup>.
    *  `data-background-position`  can be used to set the *focal point* if the size is set to `cover` <sup>5</sup>. In this example we focus on `50%` from the left and `0%` from the top.
 
+## Further tutorials
+
+If you want to read more about the posibillities and all the commands please visit the [Hype Data Magic wiki](https://github.com/worldoptimizer/HypeDataMagic/wiki). Here is a list of topics that continue the previous examples nicely:
+
+* Reading image handler properties directly from your data source
+* Using `data-magic-branch` to shorten data keys
+* Overriding default values
+
+… and much more.
+
+---
+
 **Version-History:**  
 `1.0	Initial release under MIT `   
 
@@ -138,7 +150,7 @@ https://github.com/worldoptimizer/HypeCookBook/wiki/Including-external-files-and
 
 <sup>*1. If you don't want to use the CDN Version, please download the repository and add the file -`HypeDataMagic.min.js` to your resource panel. Make sure it's added to Head HTML (Hype default).*</sup>
 
-*<sup>2. If you followed the previous example you can also just add the `image` to the existing data also we actually don't need a nested object  like`image.src` and the URL could also just be directly assigned to the`image` key. This example uses nesting because there are some optional features doing it this way.</sup>*
+*<sup>2. If you followed the previous example you can also just add the `image` to the existing data also we actually don't need a nested object  like`image.src` and the URL could also just be directly assigned to the`image` key. This example uses nesting because there are some optional features doing it this way. Read more about them in the Hype Data Magic wiki</sup>*
 
 *<sup>3. Be aware that Hype Data Magic doesn't include any preloading meaning that the image starts loading when you set the data or reach the scene when previewing.</sup>*
 
