@@ -108,6 +108,7 @@ If you want to read more about the posibillities and all the commands please vis
 
 * Reading image handler properties directly from your data source
 * Using `data-magic-branch` to shorten data keys
+* Adding your own data handler
 * Overriding default values
 
 … and much more.
