@@ -15,7 +15,6 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
   	/* @const */
 	const _isHypeIDE = window.location.href.indexOf("/Hype/Scratch/HypeScratch.") != -1;
 	
-	/* @const */
 	var _extensionName = 'Hype Data Magic';
 	var _data = {};
 	var _lookup = {};
@@ -32,15 +31,14 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			return response.json();
 		},
 		fetchErrorCallback: function(err, source){
-			_debug && console.log(extensionName+': error while fetching data for '+source, err);
+			_debug && console.log(_extensionName+': error while fetching data for '+source, err);
 		},
 		fetchDataCallback: function(data, source){
-			_debug && console.log(extensionName+': fetched data for '+source, data);
+			_debug && console.log(_extensionName+': fetched data for '+source, data);
 		},
 		handlerMixin: {},
 		sourceRedirect: {},
 		customDataForPreview: {},
-		behaviorPrefix: '',
 	};
 	
 	var _handler = {
@@ -102,11 +100,11 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		var data = (source == 'customData')? hypeDocument.customData : getData(source);
 		
 		if (data){
-			var branch = resolveObjectByKey(hypeDocument, data, findMagicAttributeAndCache(element, 'data-magic-branch'));
-			var branchdata = resolveObjectByKey(hypeDocument, branch || data, key);
+			var branchkey = findMagicAttributeAndCache(element, 'data-magic-branch');
+			var branch = branchkey? resolveObjectByKey(hypeDocument, data, branchkey) : data;
+			var branchdata = resolveObjectByKey(hypeDocument, branch, key);
 			
 			if (branchdata) {
-				
 				if (typeof branchdata != 'object') {
 					var prefix = element.getAttribute('data-magic-prefix') || '';
 					var append = element.getAttribute('data-magic-append') || '';
@@ -256,22 +254,12 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		_data[source] = data;
 	}
 
-	function triggerBehaviorOnHypeDocuments(behavior, refresh){
-		if (!(window.HYPE && window.HYPE.documents)) return; 
-		for(var documentName in window.HYPE.documents ) {
-			var hypeDocument = window.HYPE.documents[documentName];
-			hypeDocument.triggerCustomBehaviorNamed(_default['behaviorPrefix']+behavior);
-			if (refresh) hypeDocument.refresh();
-		}		
-	}
-
 	/**
 	 * This function allows to get data
 	 *
 	 * @param {String} source Th is the name of the data you want to access. It defaults to the string "shared".
 	 * @return Returns the object Hype Data Magic currently has stored under the given source name.
 	 */
-	
 	function getData(source){
 		if (_default['sourceRedirect'][source]) return _data[_default['sourceRedirect'][source]] || null;
 		if (source) return _data[source] || null;
@@ -298,7 +286,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			return '.'+parseInt(key);
 		});
 		key = key.replace(/^\./, '');
-		var parts = key.split('.'), seg;
+		var parts = key.split('.');
 		for (var i = 0, n = parts.length; i < n; ++i) {
 			if (typeof obj!='object') return;
 			key = parts[i];
@@ -381,6 +369,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 				element.innerHTML = content;
 			}
 		}
+
 		if (!_isHypeIDE){
 			createChangeObserver(hypeDocument, element);
 			enableChangeObserver(hypeDocument);
@@ -399,9 +388,6 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 				fnc();
 			});
 			_onSceneLoad = null;
-		}
-		for(var source in _data){
-			triggerBehaviorOnHypeDocuments('has '+source+' data', true);
 		}
 		enableChangeObserver(hypeDocument);
 	}
