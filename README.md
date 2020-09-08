@@ -8,7 +8,7 @@
 
 This is Hype DataMagic, it allows you to easily add and handle data in your Tumult Hype documents (with live preview). It is easy to deploy and offers partial reactivity.
 
-## Usage
+## Getting started guide
 
 ### Install Hype Data Magic
 
