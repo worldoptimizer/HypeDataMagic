@@ -131,13 +131,13 @@ Latest version can be linked into your project using the following in the head s
 **Version with IDE-Preview:**
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeDataMagic/HypeDataMagic.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeDataMagic@1/HypeDataMagic.min.js"></script>
 ```
 
 **Version without IDE-Preview (saves some kilobytes in final delivery, if necessary):**
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeDataMagic/HypeDataMagic.prod.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeDataMagic@1/HypeDataMagic.prod.min.js"></script>
 ```
 
 Optionally you can also link a SRI version or specific releases. 
