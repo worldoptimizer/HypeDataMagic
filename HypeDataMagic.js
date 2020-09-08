@@ -1,23 +1,23 @@
 /*!
-Hype DataMagic (Core) 1.0
+Hype DataMagic (Core) 1.1
 copyright (c) 2020 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
 /*
 * Version-History
 * 1.0 Initial release under MIT-license
+* 1.1 Minor performance updates
 
 */
 if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
 	/* @const */
-  	const _debug = false;
-  	/* @const */
+	const _debug = false;
+	/* @const */
 	const _isHypeIDE = window.location.href.indexOf("/Hype/Scratch/HypeScratch.") != -1;
 	
 	var _extensionName = 'Hype Data Magic';
 	var _data = {};
-	var _lookup = {};
 	var _observer = {};
 	var _onSceneLoad = [];
 	var _hypeDocumentIDE;
@@ -298,19 +298,12 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
 	function findMagicAttributeAndCache(element, attr) {
 		if (!element || !element.id) return null;
-		var id = element.id;
-		if (!_lookup[id]) _lookup[id] = {};
-		if (_lookup[id][attr] && _lookup[id][attr].hasAttribute(attr)) {
-			return _lookup[id][attr].getAttribute(attr);
-		}
 		while (element.parentNode && !element.classList.contains('HYPE_scene')) {
 			if (element.hasAttribute(attr)) {
-				_lookup[id][attr] = element;
 				return element.getAttribute(attr);
 			}
 			element = element.parentNode;
 		};
-		delete _lookup[id][attr];
 		return null;
 	}
 
@@ -571,13 +564,11 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
 	/* Reveal Public interface to window['HypeDataMagic'] */
 	return {
-		version: '1.0',
+		version: '1.1',
 		'setData': setData,
 		'getData': getData,
-		
 		'setDefault': setDefault,
 		'getDefault': getDefault,
-		
 		'addDataHandler': addDataHandler,
 	};
 })();
