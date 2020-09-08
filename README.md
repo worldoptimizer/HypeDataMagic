@@ -78,7 +78,7 @@ First we need example data with a URL pointing to an image <sup>2</sup>.
 
 ```javascript
 HypeDataMagic.setData({
-  image:{
+	image:{
 		src:'https://maxziebell.de/wp-content/uploads/2018/11/Max-Ziebell-Konzept-3-e1543533327368.png'
 	},
 });
