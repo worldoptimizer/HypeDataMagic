@@ -35,10 +35,10 @@ HypeDataMagic.setData{
 
 ![Hype-Data-Magic-Documentation22](https://raw.githubusercontent.com/wiki/worldoptimizer/HypeDataMagic/README.assets/Hype-Data-Magic-Documentation22.png)
 
-1. Select a rectangle on stage and goto the **Identity** panel 
-2. Add a new key to the **Additional HTML Attributes** called `data-magic-key` and set the value to a key we used in `setData` like *name*
+1. Select a rectangle on stage and switch to the **Identity** panel 
+2. Add a new key to the **Additional HTML Attributes** called `data-magic-key` and set the value to a property we used in `setData` like *name*
 
-You should now see a preview of the data in your Hype document. From now on, when you edit the data in your Head HTML and change back to the scene you will see that updated reflected immediately. This also works when previewing the Hype document and even works if you update the data in the browser console while previewing.
+You should now see a preview of the data in your Hype document. From now on, when you edit the data in your Head HTML and change back to the scene editor you will see the update reflected immediately. This works across previews and publishing the Hype document and even reacts to updates when calling `HypeDataMagic.setData` in the browser console.
 
 ### Basic example to set and bind data with nested objects:
 
@@ -59,20 +59,20 @@ HypeDataMagic.setData{
 });
 ```
 
-**Binding nested data** is as simple as the previous example as the data-magic-key is parsed using a simple JavaScript array/object notation. 
+**Binding nested data** is as simple as the previous example as the data-magic-key is parsed using a simple JavaScript array/object property accessor notation. 
 
 ![Hype-Data-Magic-Documentation21](https://raw.githubusercontent.com/wiki/worldoptimizer/HypeDataMagic/README.assets/Hype-Data-Magic-Documentation21.png)
 
-1. Select a recangle on stage and goto the **Identity** panel
+1. Select a recangle on stage and switch to the **Identity** panel
 2. This time we set the key to `items[0].location` as `items` is an array we chose the first branch (indexing starts at `0`) and the property `location`
 
 You should now see a preview of the nested data in your rectangle. To see all the data just repeat the last steps and change the property to `relation` and for the other rectangles just change the index from `0` to `1`.
 
 ### Using data handler in Hype Data Magic
 
-What you just experienced was the default data handler (text). It sets the inner HTML content of your rectangle to whatever string it finds when looking up the `data-magic-key` previously set using `HypeDataMagic.setData`. 
+What you just experienced was the default data handler. It sets the inner HTML content of your rectangle to whatever string it finds when looking up the `data-magic-key` previously set using `HypeDataMagic.setData`. 
 
-There is another built in data handler called `image` and in this example we will look at how we can easily set it up and use it in our Hype document.
+There is an aditional built in data handler called `image` and in this example we will look at how we can easily set it up and use it in our Hype document.
 
 First we need example data with a URL pointing to an image <sup>2</sup>.
 
@@ -88,10 +88,10 @@ HypeDataMagic.setData{
 
 ![Hype-Data-Magic-Documentation20](https://raw.githubusercontent.com/wiki/worldoptimizer/HypeDataMagic/README.assets/Hype-Data-Magic-Documentation20.png)
 
-1. Select a recangle on stage and goto the **Identity** panel
-2. Assign the `data-magic-key` as in the previous nested example to `image.src`. This time there is no array involved, so we can choose the `image` object and directly the `src` property. The new part is to assign the `data-magic-handler` and set it to `image`.
+1. Select a recangle on stage and switch to the **Identity** panel
+2. Assign the `data-magic-key` according to the previous nested example to `image.src`. This time there is no array involved, so we can choose the `image` object and directly the `src` property. The new step is to assign the `data-magic-handler` and set it to `image`.
 
-You should now see the image inside the rectangle. The image is set to be contained in the rectangle meaning it scales with the dimensions of the rectangle <sup>3</sup>.
+You should now see the image inside the rectangle. The image is set to be contained in the rectangle meaning it scales with the dimensions of the rectangle if you resize or animate it <sup>3</sup>.
 
 ### The image data handler and its options
 
@@ -107,8 +107,9 @@ You should now see the image inside the rectangle. The image is set to be contai
 If you want to read more about the posibillities and all the commands please visit the [Hype Data Magic wiki](https://github.com/worldoptimizer/HypeDataMagic/wiki). Here is a list of topics that continue the previous examples nicely:
 
 * Reading image handler properties directly from your data source
-* Using `data-magic-branch` to shorten data keys
+* [Using `data-magic-branch` to shorten data keys](https://github.com/worldoptimizer/HypeDataMagic/wiki/How-to-use-data-magic-branches)
 * Adding your own data handler
+* Using data magic tags in HTML snippets
 * Overriding default values
 
 … and much more.
@@ -151,7 +152,7 @@ https://github.com/worldoptimizer/HypeCookBook/wiki/Including-external-files-and
 
 <sup>*1. If you don't want to use the CDN Version, please download the repository and add the file -`HypeDataMagic.min.js` to your resource panel. Make sure it's added to Head HTML (Hype default).*</sup>
 
-*<sup>2. If you followed the previous example you can also just add the `image` to the existing data also we actually don't need a nested object  like`image.src` and the URL could also just be directly assigned to the`image` key. This example uses nesting because there are some optional features doing it this way. Read more about them in the Hype Data Magic wiki</sup>*
+*<sup>2. We actually don't need a nested object  like`image.src` and the URL could also just be directly assigned to top level property like the`image` key. This example uses nesting because there are some optional features when using the image in a nested manner. Read more about these features in the Hype Data Magic wiki</sup>*
 
 *<sup>3. Be aware that Hype Data Magic doesn't include any preloading meaning that the image starts loading when you set the data or reach the scene when previewing.</sup>*
 
