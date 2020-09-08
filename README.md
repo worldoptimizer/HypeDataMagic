@@ -110,6 +110,7 @@ If you want to read more about the posibillities and all the commands please vis
 * [Using `data-magic-branch` to shorten data keys](https://github.com/worldoptimizer/HypeDataMagic/wiki/How-to-use-data-magic-branches)
 * Adding your own data handler
 * Using data magic tags in HTML snippets
+* How to update data on the fly
 * Overriding default values
 
 … and much more.
