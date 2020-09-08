@@ -22,10 +22,10 @@ You're done installing Hype Data Magic <sup>1</sup>.
 
 ### Basic example to set data:
 
-Open Head HTML and add a script section to it `<script></script>`. Then add the following command between the tags:
+Open Head HTML and add a script section to it `<script></script>`. Then add the following JavaScript command between the tags:
 
 ``` javascript
-HypeDataMagic.setData{
+HypeDataMagic.setData({
 	name: 'Max Ziebell',
 	hello: 'world',
 });
@@ -43,7 +43,7 @@ You should now see a preview of the data in your Hype document. From now on, whe
 ### Basic example to set and bind data with nested objects:
 
 ```javascript
-HypeDataMagic.setData{
+HypeDataMagic.setData({
 	name: 'Max Ziebell',
 	hello: 'world',
 	items: [
@@ -77,7 +77,7 @@ There is an aditional built in data handler called `image` and in this example w
 First we need example data with a URL pointing to an image <sup>2</sup>.
 
 ```javascript
-HypeDataMagic.setData{
+HypeDataMagic.setData({
   image:{
 		src:'https://maxziebell.de/wp-content/uploads/2018/11/Max-Ziebell-Konzept-3-e1543533327368.png'
 	},
