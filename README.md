@@ -33,7 +33,7 @@ HypeDataMagic.setData{
 
 ### Bind data to your Hype document:
 
-![Hype-Data-Magic-Documentation22](README.assets/Hype-Data-Magic-Documentation22.png)
+![Hype-Data-Magic-Documentation22](https://raw.githubusercontent.com/wiki/worldoptimizer/HypeDataMagic/README.assets/Hype-Data-Magic-Documentation22.png)
 
 1. Select a rectangle on stage and goto the **Identity** panel 
 2. Add a new key to the **Additional HTML Attributes** called `data-magic-key` and set the value to a key we used in `setData` like *name*
@@ -61,7 +61,7 @@ HypeDataMagic.setData{
 
 **Binding nested data** is as simple as the previous example as the data-magic-key is parsed using a simple JavaScript array/object notation. 
 
-![Hype-Data-Magic-Documentation21](README.assets/Hype-Data-Magic-Documentation21.png)
+![Hype-Data-Magic-Documentation21](https://raw.githubusercontent.com/wiki/worldoptimizer/HypeDataMagic/README.assets/Hype-Data-Magic-Documentation21.png)
 
 1. Select a recangle on stage and goto the **Identity** panel
 2. This time we set the key to `items[0].location` as `items` is an array we chose the first branch (indexing starts at `0`) and the property `location`
@@ -86,7 +86,7 @@ HypeDataMagic.setData{
 
 
 
-![Hype-Data-Magic-Documentation20](README.assets/Hype-Data-Magic-Documentation20.png)
+![Hype-Data-Magic-Documentation20](https://raw.githubusercontent.com/wiki/worldoptimizer/HypeDataMagic/README.assets/Hype-Data-Magic-Documentation20.png)
 
 1. Select a recangle on stage and goto the **Identity** panel
 2. Assign the `data-magic-key` as in the previous nested example to `image.src`. This time there is no array involved, so we can choose the `image` object and directly the `src` property. The new part is to assign the `data-magic-handler` and set it to `image`.
@@ -95,7 +95,7 @@ You should now see the image inside the rectangle. The image is set to be contai
 
 ### The image data handler and its options
 
-![Hype-Data-Magic-Documentation19](README.assets/Hype-Data-Magic-Documentation19.png)
+![Hype-Data-Magic-Documentation19](https://raw.githubusercontent.com/wiki/worldoptimizer/HypeDataMagic/README.assets/Hype-Data-Magic-Documentation19.png)
 
 1. Select another rectangle and repeat assigning the  `data-magic-key` and the  `data-magic-handler`. 
 2. Now we can explore some options you can use when assigning the image data handler:
