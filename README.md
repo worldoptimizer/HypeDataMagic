@@ -15,7 +15,7 @@ This is Hype DataMagic, it allows you to easily add and handle data in your Tumu
 This step is effortless if you use the CDN version mentioned at the end of this document. Just copy and paste the following line into your Head HTML:
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeDataMagic@1/HypeDataMagic.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeDataMagic/HypeDataMagic.min.js"></script>
 ```
 
 You're done installing Hype Data Magic <sup>1</sup>.
@@ -132,13 +132,13 @@ Latest version can be linked into your project using the following in the head s
 **Version with IDE-Preview:**
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeDataMagic@1/HypeDataMagic.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeDataMagic/HypeDataMagic.min.js"></script>
 ```
 
 **Version without IDE-Preview (saves some kilobytes in final delivery, if necessary):**
 
 ```html
-<script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeDataMagic@1/HypeDataMagic.prod.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/worldoptimizer/HypeDataMagic/HypeDataMagic.prod.min.js"></script>
 ```
 
 Optionally you can also link a SRI version or specific releases. 
