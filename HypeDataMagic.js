@@ -104,7 +104,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			var branch = branchkey? resolveObjectByKey(hypeDocument, data, branchkey) : data;
 			var branchdata = resolveObjectByKey(hypeDocument, branch, key);
 			
-			if (branchdata) {
+			if (branchdata != null) {
 				if (typeof branchdata != 'object') {
 					var prefix = element.getAttribute('data-magic-prefix') || '';
 					var append = element.getAttribute('data-magic-append') || '';
