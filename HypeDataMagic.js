@@ -1,5 +1,5 @@
 /*!
-Hype DataMagic (Core) 1.1
+Hype DataMagic (Core) 1.2
 copyright (c) 2020 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -7,7 +7,7 @@ copyright (c) 2020 Max Ziebell, (https://maxziebell.de). MIT-license
 * Version-History
 * 1.0 Initial release under MIT-license
 * 1.1 Minor performance updates
-
+* 1.2 Multi handler support added
 */
 if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
@@ -103,8 +103,8 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			var branchkey = findMagicAttributeAndCache(element, 'data-magic-branch');
 			var branch = branchkey? resolveObjectByKey(hypeDocument, data, branchkey) : data;
 			var branchdata = resolveObjectByKey(hypeDocument, branch, key);
-			
-			if (branchdata != null) {
+			console.log(branchdata);
+			if (branchdata!=null) {
 				if (typeof branchdata != 'object') {
 					var prefix = element.getAttribute('data-magic-prefix') || '';
 					var append = element.getAttribute('data-magic-append') || '';
@@ -115,7 +115,6 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 					'data': branchdata, 
 					'source': source, 
 					'key': key,
-					'handler': element.getAttribute('data-magic-handler') || branchdata.handler || 'text'
 				});
 				
 				var types;
@@ -125,8 +124,11 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 					types = _isHypeIDE? ['DataMagicPreviewUpdate']:['DataMagicPrepareForDisplay','DataMagicLoad'];
 				}
 				
+				var handlers = (element.getAttribute('data-magic-handler') || branchdata.handler || 'text').split(',');
 				types.forEach(function(type){
-					callHandler(hypeDocument, element, Object.assign(event, {type:type}));
+					handlers.forEach(function(handler){
+						callHandler(hypeDocument, element, Object.assign(event, {type:type, 'handler': handler.trim()}));
+					})
 				})
 				
 			} else {
@@ -564,7 +566,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
 	/* Reveal Public interface to window['HypeDataMagic'] */
 	return {
-		version: '1.1',
+		version: '1.2',
 		'setData': setData,
 		'getData': getData,
 		'setDefault': setDefault,
