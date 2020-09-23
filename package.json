@@ -1,6 +1,5 @@
 {
     "name": "Hype DataMagic",
-    "version": "1.0",
     "description": "Allows you to easily add and handle data in your Hype documents (with live preview)",
     "author": "Max Ziebell",
     "main":	"HypeDataMagic.js",
