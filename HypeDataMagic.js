@@ -103,7 +103,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			var branchkey = findMagicAttributeAndCache(element, 'data-magic-branch');
 			var branch = branchkey? resolveObjectByKey(hypeDocument, data, branchkey) : data;
 			var branchdata = resolveObjectByKey(hypeDocument, branch, key);
-			console.log(branchdata);
+			
 			if (branchdata!=null) {
 				if (typeof branchdata != 'object') {
 					var prefix = element.getAttribute('data-magic-prefix') || '';
