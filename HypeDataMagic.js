@@ -1,5 +1,5 @@
 /*!
-Hype DataMagic (Core) 1.3.0
+Hype DataMagic (Core) 1.3.1
 copyright (c) 2020 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -9,7 +9,8 @@ copyright (c) 2020 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.1 Minor performance updates
 * 1.2 Multi handler support added
 -- switched to semantic versioning
-* 1.3.0 Multiple updates on IDE preview 
+* 1.3.0 Multiple updates on IDE preview
+* 1.3.1 Fixed IDE preview exiting symbols, cleanups
 
 */
 if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
@@ -143,16 +144,6 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		return !element.querySelectorAll('.HYPE_element, .HYPE_element_container').length;
 	}
 
-	function markAsRecentlyRebuilt(element){
-		element.setAttribute('magic-rebuild-time', Math.floor(performance.now()));
-	}
-
-	function recentlyRebuild(element){
-		var lastRebuildTime = element.getAttribute("magic-rebuild-time");
-		if(lastRebuildTime) return 100>performance.now()-parseInt(lastRebuildTime);
-		return false;
-	}
-	
 	function createChangeObserver (hypeDocument, baseContainer){
 		if (_observer[hypeDocument.documentId()]) return;
 
@@ -168,8 +159,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 					var oldValue = mutation.oldValue;
 					
 					if (currentValue == oldValue) return;
-					if (_isHypeIDE && recentlyRebuild(element)) return;
-
+					
 					switch (attributeName) {
 						case 'data-magic-key':
 							if (currentValue) {
@@ -449,7 +439,6 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 								/* refresh the preview after edit */
 								setTimeout(function(){
 									element.parentNode.removeAttribute('magic-edit');
-									markAsRecentlyRebuilt(element.parentNode);
 									refreshElement(_hypeDocumentIDE, element.parentNode);
 								}, 1);
 								
@@ -477,7 +466,6 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 									element.parentNode.removeAttribute('magic-edit');
 									var elms = element.parentNode.querySelectorAll('[data-magic-key]');
 									elms.forEach(function(elm){
-										markAsRecentlyRebuilt(elm);
 										refreshElement(_hypeDocumentIDE, elm);
 									});
 								}, 1);
@@ -489,7 +477,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 								setTimeout(function(){	
 									var elms = element.parentNode.querySelectorAll('[data-magic-key]');
 									elms.forEach(function(elm){
-										elm.removeAttribute('magic-rebuild-time');
+										//elm.removeAttribute('magic-rebuild-time');
 										elm.innerHTML = elm.getAttribute('data-magic-key');
 									});
 								}, 1);
@@ -519,14 +507,38 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			if (mutations.length!=2) return;
 			if (mutations[0].target.id != 'HypeMainContentDiv') return;
 			_debounceInterval = setTimeout(function(){
-				_debounceInterval = null;
 				if (_debug) console.log(_extensionName+': child list change (copy & paste or duplication)');
+				_debounceInterval = null;
 				refresh(_hypeDocumentIDE, document.documentElement);
 			},1);
 		})
 
 		childListObserver.observe(document.documentElement, { 
 			childList: true,
+			subtree: true,
+		});
+
+		/* handle updates on page while in same scene */
+		_updates = {};
+		var updateObserver = new MutationObserver(function(mutations) {
+			mutations.forEach(function (mutation) {
+				var currentValue =  mutation.target.getAttribute(mutation.attributeName);
+				if (currentValue && mutation.oldValue == currentValue && currentValue.indexOf('data-magic')!=-1){
+					var id = mutation.target.getAttribute('hypeobjectid');
+					if (_updates[id]) return;
+					_updates[id] = setTimeout(function(){
+						if (_debug) console.log(_extensionName+': rebuild after Hype refresh', mutation.target.id);
+						refreshElement(_hypeDocumentIDE, mutation.target);
+						delete(_updates[id]);
+					},1);
+				}
+			});
+		})
+
+		updateObserver.observe(document.documentElement, { 
+			attributes: true,
+			attributeOldValue: true,
+			attributeFilter:['hypeattributelastkeysplist'],
 			subtree: true,
 		});
 		
@@ -596,7 +608,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
 	/* Reveal Public interface to window['HypeDataMagic'] */
 	return {
-		version: '1.3.0',
+		version: '1.3.1',
 		'setData': setData,
 		'getData': getData,
 		'setDefault': setDefault,
