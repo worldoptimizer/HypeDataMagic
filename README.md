@@ -108,7 +108,7 @@ If you want to read more about the posibillities and all the commands please vis
 
 * Reading image handler properties directly from your data source
 * [Using `data-magic-branch` to shorten data keys](https://github.com/worldoptimizer/HypeDataMagic/wiki/How-to-use-data-magic-branches)
-* Adding your own data handler
+* [Adding your own data handler](https://github.com/worldoptimizer/HypeDataMagic/wiki/How-to-add-your-own-data-handler)
 * Using data magic tags in HTML snippets
 * How to update data on the fly
 * Overriding default values
@@ -155,12 +155,8 @@ https://github.com/worldoptimizer/HypeCookBook/wiki/Including-external-files-and
 
 **Footnotes:**
 
-<sup>*1. If you don't want to use the CDN Version, please download the repository and add the file -`HypeDataMagic.min.js` to your resource panel. Make sure it's added to Head HTML (Hype default).*</sup>
-
+*<sup>1. If you don't want to use the CDN Version, please download the repository and add the file -`HypeDataMagic.min.js` to your resource panel. Make sure it's added to Head HTML (Hype default). Another thing to note is that make sure your not caching as Hype in combination with the CDN can sometimes produce an undesired file retention. A simple trick is to add an question mark and a chaebusting random number to the end of the script source url.</sup>
 *<sup>2. We actually don't need a nested object  like`image.src` and the URL could also just be directly assigned to top level property like the`image` key. This example uses nesting because there are some optional features when using the image in a nested manner. Read more about these features in the Hype Data Magic wiki</sup>*
-
 *<sup>3. Be aware that Hype Data Magic doesn't include any preloading meaning that the image starts loading when you set the data or reach the scene when previewing.</sup>*
-
 *<sup>4. This options mirrors the CSS property background-size. Read more about possible values at https://www.w3schools.com/cssref/css3_pr_background-size.asp .</sup>*
-
 *<sup>5. This options mirrors the CSS property background-position. Read more about possible values at https://www.w3schools.com/cssref/pr_background-position.asp .</sup>*
