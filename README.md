@@ -118,7 +118,11 @@ If you want to read more about the posibillities and all the commands please vis
 ---
 
 **Version-History:**  
-`1.0	Initial release under MIT `   
+`1.0	Initial release under MIT `  
+`1.1 Minor performance updates`  
+`1.2 Multi handler support added`  
+`-- switched to semantic versioning`  
+`1.3.0 Multiple updates on IDE preview`  
 
 ## Documentation
 
