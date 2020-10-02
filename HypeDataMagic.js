@@ -10,7 +10,7 @@ copyright (c) 2020 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.2 Multi handler support added
 -- switched to semantic versioning
 * 1.3.0 Multiple updates on IDE preview
-* 1.3.1 Fixed IDE preview exiting symbols, cleanups
+* 1.3.1 Fixed IDE preview existing symbols, cleanups
 
 */
 if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
