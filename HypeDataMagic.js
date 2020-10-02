@@ -1,5 +1,5 @@
 /*!
-Hype DataMagic (Core) 1.2
+Hype DataMagic (Core) 1.3.0
 copyright (c) 2020 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -8,6 +8,9 @@ copyright (c) 2020 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.0 Initial release under MIT-license
 * 1.1 Minor performance updates
 * 1.2 Multi handler support added
+-- switched to semantic versioning
+* 1.3.0 Multiple updates on IDE preview 
+
 */
 if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
@@ -26,15 +29,6 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		source: 'shared',		
 		fallbackImage: function(){
 			return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
-		},
-		fetchResponseCallback: function(response){
-			return response.json();
-		},
-		fetchErrorCallback: function(err, source){
-			_debug && console.log(_extensionName+': error while fetching data for '+source, err);
-		},
-		fetchDataCallback: function(data, source){
-			_debug && console.log(_extensionName+': fetched data for '+source, data);
 		},
 		handlerMixin: {},
 		sourceRedirect: {},
@@ -72,6 +66,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	function callHandler(hypeDocument, element, event){
 		if (!event.handler) return;
 		if (typeof _handler[event.handler] == 'object') {
+			/* handle event if defined directly */
 			if (typeof _handler[event.handler][event.type] == 'function') {
 				try {
 					_handler[event.handler][event.type](hypeDocument, element, event);
@@ -80,8 +75,8 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 				}
 				return;
 			}
+			/* fallback on DataMagicPrepareForDisplay for IDE if DataMagicPreviewUpdate is not defined */
 			if (_isHypeIDE && typeof _handler[event.handler]['DataMagicPrepareForDisplay'] == 'function'){
-				// DataMagicPreviewUpdate
 				try {
 					_handler[event.handler]['DataMagicPrepareForDisplay'](hypeDocument, element, event);
 				} catch (e){
@@ -189,11 +184,17 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 							unloadMagicKey(hypeDocument, element);
 							refresh(hypeDocument, element);
 							break;
-						
+
 						case 'data-magic-handler':
 							unloadMagicKey(hypeDocument, element, {oldHandler: oldValue});
 							refresh(hypeDocument, element);
 							break;
+
+						case 'data-magic-prefix':
+						case 'data-magic-append':
+							refresh(hypeDocument, element);
+							break;
+						
 					}
 				});
 			}),
@@ -201,7 +202,14 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			options: {
 				subtree: true,
 				attributes: true,
-				attributeFilter: ['data-magic-key', 'data-magic-source', 'data-magic-branch', 'data-magic-handler'],
+				attributeFilter: [
+					'data-magic-key', 
+					'data-magic-source', 
+					'data-magic-branch', 
+					'data-magic-handler', 
+					'data-magic-prefix',
+					'data-magic-append'
+				],
 				attributeOldValue: true
 			},
 
@@ -401,6 +409,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	/* run in IDE */
 	if (_isHypeIDE){
 
+		/* setup fake hypeDocument for IDE */
 		_hypeDocumentIDE = new Proxy({ 
 			getElementProperty: function(element, property){
 				return element.style.getPropertyValue(property) || null;
@@ -421,9 +430,11 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			},
 		});
 
+		/* fire fake document load event for IDE */
 		if (_debug) console.log(_extensionName+': HypeDocumentLoad (extending _hypeDocumentIDE)');
 		HypeDocumentLoad(_hypeDocumentIDE, document.documentElement);
 
+		/* setup listener for edits on element content(dblClick)/innerHTML(pen) using data magic */
 		var refreshObserver = new MutationObserver(function(mutations) {
 			mutations.forEach(function (mutation) {
 				var element = mutation.target;
@@ -500,7 +511,26 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			attributeFilter:['contenteditable'],
 			subtree: true,
 		});
+
+		/* handle updates in page like duplication and copy & paste */
+		var _debounceInterval;
+		var childListObserver = new MutationObserver(function(mutations) {
+			if (_debounceInterval) return;
+			if (mutations.length!=2) return;
+			if (mutations[0].target.id != 'HypeMainContentDiv') return;
+			_debounceInterval = setTimeout(function(){
+				_debounceInterval = null;
+				if (_debug) console.log(_extensionName+': child list change (copy & paste or duplication)');
+				refresh(_hypeDocumentIDE, document.documentElement);
+			},1);
+		})
+
+		childListObserver.observe(document.documentElement, { 
+			childList: true,
+			subtree: true,
+		});
 		
+		/* setup after dom has loaded first time */
 		window.addEventListener("DOMContentLoaded", function(event) {
 			if (_debug) console.log(_extensionName+': DOMContentLoaded');
 			
@@ -566,7 +596,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
 	/* Reveal Public interface to window['HypeDataMagic'] */
 	return {
-		version: '1.2',
+		version: '1.3.0',
 		'setData': setData,
 		'getData': getData,
 		'setDefault': setDefault,
