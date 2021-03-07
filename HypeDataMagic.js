@@ -1,387 +1,618 @@
 /*!
-Hype Data Decorator 1.2.7
-copyright (c) 2019-2021 Max Ziebell, (https://maxziebell.de). MIT-license
+Hype DataMagic (Core) 1.3.1
+copyright (c) 2020 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
 /*
 * Version-History
 * 1.0 Initial release under MIT-license
-* 1.1 Added option to set initial value
-* 1.2.0 Inspired by Symbol Override I added a callback
-* 1.2.1 Also updating when class is modified (only in IDE)
-* 1.2.2 Minor bugfix on preview, refactored names (breaking change)
-* 1.2.3 Remove the possibility for recursive loops in IDE and console.log
-* 1.2.4 Added hypeDocument, symbolInstance to callback and setContent
-* 1.2.5 Renamed and refactored to Hype Data Decorator
-* 1.2.6 Another refactor, comments in code, cleanup and direct observer
-* 1.2.7 Minor update: Adding the hypeDocumentElm and sceneElm to event
-*/
-if("HypeDataDecorator" in window === false) window['HypeDataDecorator'] = (function () {
+* 1.1 Minor performance updates
+* 1.2 Multi handler support added
+-- switched to semantic versioning
+* 1.3.0 Multiple updates on IDE preview
+* 1.3.1 Fixed IDE preview existing symbols, cleanups
 
-	var _mapList = [];
-	var _activated = {};
-	var _decorator = {
-		'setContent' : function(hypeDocument, element, event) {
-			setContent(element, event.value);
-		}
-	};
+*/
+if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
 	/* @const */
+	const _debug = false;
+	/* @const */
 	const _isHypeIDE = window.location.href.indexOf("/Hype/Scratch/HypeScratch.") != -1;
-
-	// this branch only runs in IDE, set _isHypeIDE to false to remove it in closure compiler
-	if (_isHypeIDE) {
-		var _lastRefresh = 0;
-
-		// trigger observerd attributes
-		function refreshIDE (){
-			// debounce as Hype likes to refresh multiple times
-			var now = Math.round(new Date().getTime()/10); if (_lastRefresh == now) return; _lastRefresh = now;
-			// loop over declared observer 
-			_mapList.forEach(function(mapItem) {
-				// check if this has a attributeName and if so search for it and set it to trigger handler
-				if (mapItem.attributeName) document.querySelectorAll('['+mapItem.attributeName+']').forEach(function(elm){
-					elm.setAttribute(mapItem.attributeName, elm.getAttribute(mapItem.attributeName));
-				});
-			});
-		}
-
-		// While in IDE wait for webkit to load the view
-		window.addEventListener('DOMContentLoaded', function (event){
-			// create a hypeDocumentElm for the webkit view (not HYPE_document but <html> itself)
-			var hypeDocumentElm = document.documentElement || document.body;
-			activateObserver(hypeDocumentElm);
-
-			// add an reverse class observer triggering our custom refreshIDE above when classList is changed in IDE
-			var classObserver = new MutationObserver(function(){ refreshIDE(); });
-			classObserver.observe(hypeDocumentElm, { attributes: true, subtree: true, attributeFilter: [ 'class' ]});
-			
-		});
-	}
-
-	// this function runs through our activated observer and disconnects them given a hypeDocumentElm match
-	// the match is used to only deactive observer that belong to the current Hype document
-	function deactivateObserver(hypeDocumentElm){
-		for (var key in _activated) {
-			if (key.indexOf(hypeDocumentElm.id+'__') != -1) {
-				// through observer in the garbage (collector)
-				_activated[key].disconnect();
-				_activated[key] = undefined;
-				delete _activated[key];
+	
+	var _extensionName = 'Hype Data Magic';
+	var _data = {};
+	var _observer = {};
+	var _onSceneLoad = [];
+	var _hypeDocumentIDE;
+	
+	var _default = {
+		source: 'shared',		
+		fallbackImage: function(){
+			return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+		},
+		handlerMixin: {},
+		sourceRedirect: {},
+		customDataForPreview: {},
+	};
+	
+	var _handler = {
+		'text': {
+			DataMagicPrepareForDisplay: function(hypeDocument, element, event){
+				if (element.innerHTML != event.data) element.innerHTML = event.data;
+			},
+			DataMagicUnload: function(hypeDocument, element, event){
+				if (hasNoHypeElementsAsChild(element)) element.innerHTML = '';
 			}
-		}
-	}
-
-	// this function deactives running observer and then runs through our planned observer list and triggers
-	// the associated activateHandler. We use this abstraction to have different kinds of observer activations.
-	// baseCOntainer is dependent on the context we are launching in (IDE, Preview/Export) could be simplefied
-	// by introducing a fake hypeDocument in IDE
-	function activateObserver (hypeDocumentElm, hypeDocument){
-		
-		// deactivate any existing observer for this hypeDocumentElm (mainly for IDE)
-		// could be gated with if (isHypeIDE) ... in current logic, leaving it in for now
-		deactivateObserver(hypeDocumentElm);
-
-		// run through our list of planned observer
-		_mapList.forEach(function(mapItem){
-			mapItem.activateHandler(mapItem, hypeDocumentElm, hypeDocument);
-		});
-	}
-
-	function uniqueObserverId(hypeDocumentElm, addition){
-		return hypeDocumentElm.id+'__'+addition;
-	}
-
-	// this is the orginial handler of Data Decorator and starts to observer a (data)attribute and maps
-	// the (data)attribute to a className or selector
-	function observerAttributeByName_BroadcastToSelectorWithCallback(mapItem, hypeDocumentElm, hypeDocument) {
-		// unique key for this type of observer setup: attributeName observerd
-		var unique = uniqueObserverId(hypeDocumentElm, mapItem.attributeName);
-		
-		// Fake sceneElm as hypeDocumentElm
-		var sceneElm = hypeDocumentElm;		
-		
-		// only redeclare and start if not running
-		if (!_activated[unique]){
-			mapItem.observerFunction = function(mutations) {
-				mutations.forEach(function(mutation) {
-					if (mutation.attributeName == mapItem.attributeName) {
-						// get current attribute name from watched data(attribute)
-						var currentValue = mutation.target.getAttribute(mapItem.attributeName);
-
-						// fetch all decendants matching the mapped selector
-						var targetElms = [].slice.call(mutation.target.querySelectorAll(mapItem.selector));
-						
-						// check if the mutation target triggering this matches too and add it
-						if(mutation.target.matches(mapItem.selector)) targetElms.unshift(mutation.target);
-						
-						for (var i=0; i < targetElms.length; i++) {
-							// resolve if we have a symbolInstance when running not in IDE
-							var symbolInstance = hypeDocument? hypeDocument.getSymbolInstanceById(targetElms[i].id):null;
-
-							// make sure we cast to an unified array of functions and establish fallback to setContent
-							var callbacks = castAsCallbackArray(mapItem.callback? mapItem.callback : setContent);
-
-							// set sceneElm if we are not in the IDE before applying callbacks
-							if (!_isHypeIDE) sceneElm = document.getElementById(hypeDocument.currentSceneId());
-
-							// run through array and execute function callbacks, pass on value if possible
-							var value;
-							for(var j=0; j<callbacks.length; j++){
-								var value = callbacks[j](hypeDocument, targetElms[i], value || {
-									'value' : currentValue, 
-									'mutation': mutation,
-									'symbolInstance' : symbolInstance,
-									'hypeDocumentElm' : hypeDocumentElm,
-									'sceneElm' : sceneElm,
-								});
-							}
-						}
-					}
-					// setup setter logic with -inital value because Hype resets on scene change, not always desired
-					if (mutation.attributeName == mapItem.attributeName+'-initial') {
-						var initialValue = mutation.target.getAttribute(mapItem.attributeName+'-initial');
-						var currentValue = mutation.target.getAttribute(mapItem.attributeName);
-						if (_isHypeIDE){
-							mutation.target.setAttribute(mapItem.attributeName, initialValue);
-						} else {
-							if (currentValue!=null ) {
-								mutation.target.setAttribute(mapItem.attributeName, currentValue);
-							} else if (!mutation.target.hasAttribute(mapItem.attributeName) && initialValue) {
-								mutation.target.setAttribute(mapItem.attributeName, initialValue);
-							}
-						}
-					}
-				});
-			}
-			
-			// create an observer based on the obserFunction just created
-			mapItem.observer = new MutationObserver( mapItem.observerFunction );
-
-			// remeber activated observer
-			_activated[unique] = mapItem.observer;
-			
-			// define a startFunction for the observer
-			mapItem.startObserver = function(target){
-				 this.observer.observe(target, { 
-					attributes: true, attributeOldValue: true, subtree: true,
-					attributeFilter: [ this.attributeName, this.attributeName+'-initial' ]
-				});
-			};
-			
-			// start observing hypeDocumentElm
-			mapItem.startObserver(hypeDocumentElm);
-		}
-	}
-
-
-	// this is the new handler of Data Decorator to observer a single node and handle its
-	// changes by passing them to (a) callback(s)
-	function observeNodeBySelector_HandleWithCallback(mapItem, hypeDocumentElm, hypeDocument) {
-		
-		// unique key for this type of observer setup: attributeName observerd
-		var unique = uniqueObserverId(hypeDocumentElm, mapItem.selector);
-		var attributeName = mapItem.attributeFilter? mapItem.attributeFilter[0] : 'style';
-
-		// Fake sceneElm as hypeDocumentElm
-		var sceneElm = hypeDocumentElm;
-		 
-		// only redeclare and start if not running
-		if (!_activated[unique]){
-			mapItem.observerFunction = function(mutations) {
-				mutations.forEach(function(mutation) {
-					// gate against unmatching calls
-					if(!mutation.target.matches(mapItem.selector)) return;
-
-					// get current attribute name from watched data(attribute)
-					var currentValue = mutation.target.getAttribute(attributeName);
-
-					// resolve if we have a symbolInstance when running not in IDE
-					var symbolInstance = hypeDocument? hypeDocument.getSymbolInstanceById(mutation.target) : null;
-
-					// make sure we cast to an unified array of functions and establish fallback to setContent
-					var callbacks = castAsCallbackArray(mapItem.callback);
-
-					// set sceneElm if we are not in the IDE before applying callbacks
-					if (!_isHypeIDE) sceneElm = document.getElementById(hypeDocument.currentSceneId());
-
-					// run through array and execute function callbacks, pass on value if possible
-					var value;
-					for(var j=0; j<callbacks.length; j++){
-						var value = callbacks[j](hypeDocument, mutation.target, value || {
-							'value' : currentValue,
-							'mutation': mutation,
-							'symbolInstance' : symbolInstance,
-							'hypeDocumentElm' : hypeDocumentElm,
-							'sceneElm' : sceneElm,
-						});
-					}
-				});
-			}
-			
-			// create an observer based on the obserFunction just created
-			mapItem.observer = new MutationObserver( mapItem.observerFunction );
-
-			// remeber activated observer
-			_activated[unique] = mapItem.observer;
-			
-			//determine attributes to observe
-			var attributeFilter = mapItem.attributeFilter? mapItem.attributeFilter : ['style'];
-
-			// start document observer with subtree (perfomance should suffer because we gate)
-			mapItem.observer.observe(hypeDocumentElm, { 
-				attributes: true, attributeOldValue: true, subtree:true,
-				attributeFilter: attributeFilter,
-			});
-		}
-	}
-
-	function castAsCallbackArray(callback){
-		var callbacks = [];
-		switch (typeof callback){
-			case 'function':
-				callbacks= [callback];
-				break;
-
-			case 'string':
-				callbacks = callback.split('|')
-				.map(function(a){ return a.trim()})
-				.filter(function(a){return a && _decorator[a];})
-				.map(function(a){ return _decorator[a]});
-				break;
-
-			case 'object':
-				if (Array.isArray(callback)){
-					callbacks = callback
-					.filter(function(a){return typeof a == 'function' || _decorator[a];})
-					.map(function(a){return typeof a == 'function'? a : _decorator[a];});
+		},
+		'image': {
+			DataMagicPrepareForDisplay: function (hypeDocument, element, event){
+				if (typeof event.data == 'string') event.data = {src: event.data};
+				if (!event.data.src) event.data.src = element.dataset.fallbackImage || _default.fallbackImage();
+				element.innerHTML = '';
+				if (hypeDocument.getElementProperty(element, 'background-image')!=event.data.src) {
+					element.style.backgroundRepeat = 'no-repeat';
+					element.style.backgroundPosition = event.data.backgroundPosition || element.dataset.backgroundPosition || 'center center';
+					element.style.backgroundSize = event.data.backgroundSize || element.dataset.backgroundSize || 'contain';
+					hypeDocument.setElementProperty(element, 'background-image', event.data.src);
 				}
-				break;
+			},
+			DataMagicUnload: function(hypeDocument, element, event){
+				hypeDocument.setElementProperty( element, 'background-image','');
+				element.style.backgroundRepeat = element.style.backgroundPosition = element.style.backgroundRepeat = '';
+			}
 		}
-		return callbacks;
 	}
 
+	function callHandler(hypeDocument, element, event){
+		if (!event.handler) return;
+		if (typeof _handler[event.handler] == 'object') {
+			/* handle event if defined directly */
+			if (typeof _handler[event.handler][event.type] == 'function') {
+				try {
+					_handler[event.handler][event.type](hypeDocument, element, event);
+				} catch (e){
+					console.log('There was an error in your handler "'+event.handler+'": ',e);
+				}
+				return;
+			}
+			/* fallback on DataMagicPrepareForDisplay for IDE if DataMagicPreviewUpdate is not defined */
+			if (_isHypeIDE && typeof _handler[event.handler]['DataMagicPrepareForDisplay'] == 'function'){
+				try {
+					_handler[event.handler]['DataMagicPrepareForDisplay'](hypeDocument, element, event);
+				} catch (e){
+					console.log('There was an error in your handler "'+event.handler+'": ',e);
+				}
+				return;
+			}
+		}
+	}
 
+	function updateMagicKey(hypeDocument, element, event){
+		if (!element.getAttribute('data-magic-key')) return;
+
+		var source = findMagicAttributeAndCache(element, 'data-magic-source') || _default['source'];
+		var key = trim(element.getAttribute('data-magic-key'));
+		var data = (source == 'customData')? hypeDocument.customData : getData(source);
+		
+		if (data){
+			var branchkey = findMagicAttributeAndCache(element, 'data-magic-branch');
+			var branch = branchkey? resolveObjectByKey(hypeDocument, data, branchkey) : data;
+			var branchdata = resolveObjectByKey(hypeDocument, branch, key);
+			
+			if (branchdata!=null) {
+				if (typeof branchdata != 'object') {
+					var prefix = element.getAttribute('data-magic-prefix') || '';
+					var append = element.getAttribute('data-magic-append') || '';
+					branchdata = prefix + branchdata + append;
+				}
+
+				event = Object.assign(event||{}, {
+					'data': branchdata, 
+					'source': source, 
+					'key': key,
+				});
+				
+				var types;
+				if (event.type){
+					types = event.type.replace('HypeScene', 'DataMagic').split();
+				} else {
+					types = _isHypeIDE? ['DataMagicPreviewUpdate']:['DataMagicPrepareForDisplay','DataMagicLoad'];
+				}
+				
+				var handlers = (element.getAttribute('data-magic-handler') || branchdata.handler || 'text').split(',');
+				types.forEach(function(type){
+					handlers.forEach(function(handler){
+						callHandler(hypeDocument, element, Object.assign(event, {type:type, 'handler': handler.trim()}));
+					})
+				})
+				
+			} else {
+				unloadMagicKey(hypeDocument, element);
+			}
+		}
+	}
+
+	function unloadMagicKey(hypeDocument, element, event){
+		event = event || {};
+		if (!event.type) event.type = 'DataMagicUnload';
+		event.handler = event.oldHandler || element.getAttribute('data-magic-handler') || 'text';
+		callHandler(hypeDocument, element, event)
+	}
+
+	function hasNoHypeElementsAsChild(element){
+		return !element.querySelectorAll('.HYPE_element, .HYPE_element_container').length;
+	}
+
+	function createChangeObserver (hypeDocument, baseContainer){
+		if (_observer[hypeDocument.documentId()]) return;
+
+		_observer[hypeDocument.documentId()] = {
+
+			changeObserver: new MutationObserver(function(mutations) {
+				mutations.forEach(function (mutation) {
+					if (mutation.type != 'attributes') return;
+					
+					var element = mutation.target;
+					var attributeName = mutation.attributeName;
+					var currentValue = trim(element.getAttribute(attributeName));
+					var oldValue = mutation.oldValue;
+					
+					if (currentValue == oldValue) return;
+					
+					switch (attributeName) {
+						case 'data-magic-key':
+							if (currentValue) {
+								updateMagicKey(hypeDocument, element);
+							} else {
+								unloadMagicKey(hypeDocument, element)
+							}
+							break;
+
+						case 'data-magic-source':
+						case 'data-magic-branch':
+							unloadMagicKey(hypeDocument, element);
+							refresh(hypeDocument, element);
+							break;
+
+						case 'data-magic-handler':
+							unloadMagicKey(hypeDocument, element, {oldHandler: oldValue});
+							refresh(hypeDocument, element);
+							break;
+
+						case 'data-magic-prefix':
+						case 'data-magic-append':
+							refresh(hypeDocument, element);
+							break;
+						
+					}
+				});
+			}),
+
+			options: {
+				subtree: true,
+				attributes: true,
+				attributeFilter: [
+					'data-magic-key', 
+					'data-magic-source', 
+					'data-magic-branch', 
+					'data-magic-handler', 
+					'data-magic-prefix',
+					'data-magic-append'
+				],
+				attributeOldValue: true
+			},
+
+			enable: function(){
+				this.changeObserver.observe(baseContainer, this.options);
+			},
+
+			disable: function(){
+				this.changeObserver.disconnect();
+			}
+		}	
+	}
+
+	function enableChangeObserver(hypeDocument){
+		if (!_observer[hypeDocument.documentId()]) return;
+		_observer[hypeDocument.documentId()].enable();
+	}
+
+	function disableChangeObserver(hypeDocument){
+		if (!_observer[hypeDocument.documentId()]) return;
+		_observer[hypeDocument.documentId()].disable();
+	}
+
+	function refreshDescendants(hypeDocument, element, event){
+		if (!element) return;
+		var elms = element.querySelectorAll('[data-magic-key]');
+		elms.forEach(function(elm){
+			updateMagicKey(hypeDocument, elm, event);
+		});
+	}
+
+	function refreshElement(hypeDocument, element, event){
+		if (!element) return;
+		updateMagicKey(hypeDocument, element, event);
+	}
+
+	function refresh(hypeDocument, element, event){
+		if (!element) return;
+		refreshElement(hypeDocument, element, event);
+		refreshDescendants(hypeDocument, element, event)
+	}
+
+	/**
+	 * This function allows to set data
+	 *
+	 * @param {Object} data This parameter needs to be an object but it can hold nested values of any type. To use JSON data parse the data before you set it.
+	 * @param {String} source The source is a optional name to store the data. It defaults to the string "shared".
+	 * @return Returns the result of the event. Mostly this is an Boolean in case of Hype as it uses the events in an Observer pattern.
+	 */
+	function setData(data, source){
+		source = source || _default['source'];
+		_data[source] = data;
+	}
+
+	/**
+	 * This function allows to get data
+	 *
+	 * @param {String} source Th is the name of the data you want to access. It defaults to the string "shared".
+	 * @return Returns the object Hype Data Magic currently has stored under the given source name.
+	 */
+	function getData(source){
+		if (_default['sourceRedirect'][source]) return _data[_default['sourceRedirect'][source]] || null;
+		if (source) return _data[source] || null;
+		return _data[_default['source']] || null;
+	}
+
+	function setDefault(key, value){
+		_default[key] = value;
+	}
+
+	function getDefault(key){
+		return _default[key];
+	}
+
+	function trim(str){
+		if (typeof str != 'string') return;
+		return str.trim();
+	}
+
+	function resolveObjectByKey(hypeDocument, obj, key) {
+		if (typeof obj!='object') return;
+		if (typeof key != 'string') return;
+		key = key.replace(/\[(\d+)\]/g, function(match, key){
+			return '.'+parseInt(key);
+		});
+		key = key.replace(/^\./, '');
+		var parts = key.split('.');
+		for (var i = 0, n = parts.length; i < n; ++i) {
+			if (typeof obj!='object') return;
+			key = parts[i];
+			if (!obj.hasOwnProperty(key)) return;
+			obj = obj[key];
+		}
+		return obj;
+	}
+
+	function findMagicAttributeAndCache(element, attr) {
+		if (!element || !element.id) return null;
+		while (element.parentNode && !element.classList.contains('HYPE_scene')) {
+			if (element.hasAttribute(attr)) {
+				return element.getAttribute(attr);
+			}
+			element = element.parentNode;
+		};
+		return null;
+	}
 
 	function HypeDocumentLoad (hypeDocument, element, event) {
-		var hypeDocumentElm = hypeDocument.getElementById(hypeDocument.documentId());
-		activateObserver(hypeDocumentElm, hypeDocument);
+		
+		/**
+		 * This function allows to refresh the data in the current scene
+		 *
+		 * @param {HTMLDivElement} element The element (including descendants) to refresh. This defaults to the scene element.
+		 */
+		hypeDocument.refresh = function(element){
+			refresh(this, element || document.getElementById(this.currentSceneId()));
+		}
+
+		/**
+		 * This function allows to refresh the data of all descendant of a given element
+		 *
+		 * @param {HTMLDivElement} element The element to start the descendants refresh. This defaults to the scene element.
+		 */
+		hypeDocument.refreshDescendants = function(element){
+			refreshDescendants(this, element || document.getElementById(this.currentSceneId()));
+		}
+
+		/**
+		 * This function allows to refresh a specific element
+		 *
+		 * @param {HTMLDivElement} element The element to refresh.
+		 */
+		hypeDocument.refreshElement = function(element){
+			refreshElement(this, element);
+		}
+
+		/**
+		 * This function allows to disable observer based refresh calls when updating a data-magic-* attribute
+		 *
+		 */
+		hypeDocument.disableChangeObserver = function(){
+			disableChangeObserver(this);
+		}
+
+		/**
+		 * This function allows to (re)enable observer based refresh calls when updating a data-magic-* attribute
+		 *
+		 */
+		hypeDocument.enableChangeObserver = function(){
+			enableChangeObserver(this);
+		}
+
+		/**
+		 * This function is a simple helper function that checks if the content provided differs from the content found in element.innHTML and only refreshes if needed
+		 *
+		 * @param {HTMLDivElement} content The content to set in innerHTML if it differs
+		 */
+		hypeDocument.setContentIfNecessary = function(element, content){
+			if (element.innerHTML != content) {
+				element.innerHTML = content;
+			}
+		}
+
+		if (!_isHypeIDE){
+			createChangeObserver(hypeDocument, element);
+			enableChangeObserver(hypeDocument);
+		}
 	}
 
-	function validKey(key){
-		return new RegExp(/^[a-z0-9-_]+$/i).test(key);
+	function HypeScenePrepareForDisplay (hypeDocument, element, event) {
+		disableChangeObserver(hypeDocument);
+		refresh(hypeDocument, element, event);
 	}
 
-	/* functions also used in public interface */
-
-	// default callback sets innerHTML if we don't have any HYPE child nodes
-	// this helps in preventing undesired destruction of Hype managed nodes
-	// this is also set as default decorator and registers as a callback
+	function HypeSceneLoad (hypeDocument, element, event) {
+		refresh(hypeDocument, element, event);
+		if (_onSceneLoad){
+			_onSceneLoad.forEach(function(fnc){
+				fnc();
+			});
+			_onSceneLoad = null;
+		}
+		enableChangeObserver(hypeDocument);
+	}
 	
-	/**
-	 * This function allows to set innerHTML in a save way. Meaning it
-	 * helps in preventing undesired destruction of Hype managed nodes
-	 * this is also set as the default decorator and registers as a callback 
-	 *
-	 * @param {HTMLDivElement} element This is the element to set the content on
-	 * @param {String} value The value determins what is inserted to innerHTML
-	 */
-	function setContent(element, value){
-		if (!element) return;
-		if (element.querySelector('.HYPE_element_container, .HYPE_element')) return;
-		element.innerHTML = value;
-	}
-
-	/**
-	 * This function is a proxy to HypeDataDecorator.mapAttributeToSelector and
-	 * and sets the attribute data-YOURKEY and maps it to the class .YOURKEY
-	 * serving as a shortcut. The callback is optional and has setContent as fallback.
-	 * The value of the data-YOURKEY will be forwarded to the callback(s) as event.value
-	 *
-	 * @param {String} key This is the data attribute we want to map
-	 * @param {String} callback This is an decorator callback and is optional
-	 * @param {Object} options These options are a mixin and still not used here
-	 */
-	function mapDataAttribute (key, callback, options){
-		mapAttributeToSelector('data-'+key, '.'+key, callback || _decorator[key] || setContent, options);
-	}
-	
-	/**
-	 * This function maps a attribute to selector and fires the given callback
-	 * on all its decendants. This function allows for more flexebility in mapping.
-	 * and the callback is optional and has setContent as fallback.
-	 * The value of the attribute will be forwarded to the callback(s) as event.value
-	 *
-	 * @param {String} key This is the attribute we want to map
-	 * @param {String} selector This is the selector we want to forward the value to
-	 * @param {String} callback This is an decorator callback and is optional
-	 * @param {Object} options These options are a mixin and still not used here
-	 */
-	function mapAttributeToSelector (key, selector, callback, options){
-		if (!validKey(key) || !selector || !callback) return;
-		options = options? options : {};
-		_mapList.push( Object.assign(options, {
-			attributeName : key,
-			selector : selector,
-			callback : callback,
-			// handler
-			activateHandler : observerAttributeByName_BroadcastToSelectorWithCallback
-		}));
-	}
-
-	/**
-	 * This function allow to register a element decorator callback by name.
-	 * Having named callbacks allows to chain them and reuse them if wanted.
-	 *
-	 * @param {String} name This is the attribute we want to map
-	 * @param {Function} callback This is the function to be registered as an decorator
-	 */
-	function registerElementDecorator (name, callback){
-		_decorator[name] = callback; 
-	}
-
-	/**
-	 * This function maps sets up an HTML element observer that match a selector and a attribute.
-	 * By default the style attribute on the HTML element is observered for change.
-	 * To determine other attributes use the options as {attributesFilter: ['a','b']}.
-	 * If one needs to listen to all attributes set options as {attributesFilter: []}
-	 * 
-	 * @param {String} selector This is the selector that determin
-	 * @param {String} callback This is an decorator callback and is optional
-	 * @param {Object} options These options are a mixin and allow setting the attributeFilter
-	 */
-	function observeBySelector(selector, callback, options){
-		if (!selector || !callback) return;
-		options = options? options : {};
-		_mapList.push( Object.assign(options, {
-			selector : selector,
-			callback : callback,
-			// handler
-			activateHandler : observeNodeBySelector_HandleWithCallback
-		}));	
-	}
-
-	/**
-	 * This function returns a list of all running observer. Mainly for testing.
-	 *
-	 * @return Return array with active observer across all Hype documents
-	 */
-	function getRunningObserver(){
-		return _activated;
+	function HypeSceneUnload (hypeDocument, element, event) {
+		disableChangeObserver(hypeDocument);
 	}
 
 	/* setup callbacks */
 	if("HYPE_eventListeners" in window === false) { window.HYPE_eventListeners = Array();}
 	window.HYPE_eventListeners.push({"type":"HypeDocumentLoad", "callback": HypeDocumentLoad});
+	window.HYPE_eventListeners.push({"type":"HypeScenePrepareForDisplay", "callback": HypeScenePrepareForDisplay});
+	window.HYPE_eventListeners.push({"type":"HypeSceneLoad", "callback": HypeSceneLoad});
+	window.HYPE_eventListeners.push({"type":"HypeSceneUnload", "callback": HypeSceneUnload});
 	
-	/* Reveal Public interface to window['HypeDataDecorator'] */
+	/* run in IDE */
+	if (_isHypeIDE){
+
+		/* setup fake hypeDocument for IDE */
+		_hypeDocumentIDE = new Proxy({ 
+			getElementProperty: function(element, property){
+				return element.style.getPropertyValue(property) || null;
+			},
+			setElementProperty: function(element, property, value){
+				if (value) switch (property){
+					case 'background-image':  value = 'url('+value+')'; break;
+				}
+				element.style.setProperty(property, value, 'important');
+			},
+			documentId: function(){
+				return 'HypeSceneEditor';
+			},
+		}, {
+			get: function(obj, prop) {
+				if (prop === 'customData') return _default['customDataForPreview'];
+				return obj[prop];
+			},
+		});
+
+		/* fire fake document load event for IDE */
+		if (_debug) console.log(_extensionName+': HypeDocumentLoad (extending _hypeDocumentIDE)');
+		HypeDocumentLoad(_hypeDocumentIDE, document.documentElement);
+
+		/* setup listener for edits on element content(dblClick)/innerHTML(pen) using data magic */
+		var refreshObserver = new MutationObserver(function(mutations) {
+			mutations.forEach(function (mutation) {
+				var element = mutation.target;
+				if (mutation.type === 'attributes') {
+
+					if (element.parentNode && mutation.attributeName == 'contenteditable'){
+						
+						/* handle edits on rectangles with user set data-magic-key in the identity HTML attributes*/
+						if(element.parentNode.hasAttribute('data-magic-key')){
+							if(element.getAttribute('contenteditable') == 'false' && mutation.oldValue =='true'){
+								if (_debug) console.log(_extensionName+': innerHTML rebuild (after edit)');
+								/* refresh the preview after edit */
+								setTimeout(function(){
+									element.parentNode.removeAttribute('magic-edit');
+									refreshElement(_hypeDocumentIDE, element.parentNode);
+								}, 1);
+								
+							} else {
+								if (_debug) console.log(_extensionName+': innerHTML purge (before edit)');
+								/* add preview to innerHTML when double clicked */
+								element.parentNode.setAttribute('magic-edit','preview');
+								setTimeout(function(){
+									var branch = findMagicAttributeAndCache(element.parentNode, 'data-magic-branch');
+									var placeholder = '<!-- Hype Data magic: This is only a preview placeholder and edits are ignored!';
+									if (branch) placeholder += ' This key resides on the branch "'+branch+'"';
+									placeholder += ' -->';
+									element.innerHTML = placeholder + "\n"+element.parentNode.getAttribute('data-magic-key');
+								}, 1);
+							}
+							return;
+						}
+
+						/* handle edits on rectangles that contain data-magic-keys but are not handled by previous block */
+						if (element.parentNode.querySelectorAll('[data-magic-key]').length) {
+							if(element.getAttribute('contenteditable') == 'false' && mutation.oldValue =='true'){
+								if (_debug) console.log(_extensionName+': innerHTML rebuild included magic keys (after edit)');
+								/* refresh the preview after edit */
+								setTimeout(function(){
+									element.parentNode.removeAttribute('magic-edit');
+									var elms = element.parentNode.querySelectorAll('[data-magic-key]');
+									elms.forEach(function(elm){
+										refreshElement(_hypeDocumentIDE, elm);
+									});
+								}, 1);
+
+							} else {
+								if (_debug) console.log(_extensionName+': innerHTML purge included magic keys (before edit)');
+								element.parentNode.setAttribute('magic-edit','innerHTML');
+								/* substitute keys with the key identifier while editing */
+								setTimeout(function(){	
+									var elms = element.parentNode.querySelectorAll('[data-magic-key]');
+									elms.forEach(function(elm){
+										//elm.removeAttribute('magic-rebuild-time');
+										elm.innerHTML = elm.getAttribute('data-magic-key');
+									});
+								}, 1);
+							}
+							return;
+						}
+					}
+					
+				} else{
+
+					if (_debug) console.log(_extensionName+': unmapped mutation', mutation);
+				}	
+			});
+		});
+
+		refreshObserver.observe(document.documentElement, { 
+			attributes: true,
+			attributeOldValue: true,
+			attributeFilter:['contenteditable'],
+			subtree: true,
+		});
+
+		/* handle updates in page like duplication and copy & paste */
+		var _debounceInterval;
+		var childListObserver = new MutationObserver(function(mutations) {
+			if (_debounceInterval) return;
+			if (mutations.length!=2) return;
+			if (mutations[0].target.id != 'HypeMainContentDiv') return;
+			_debounceInterval = setTimeout(function(){
+				if (_debug) console.log(_extensionName+': child list change (copy & paste or duplication)');
+				_debounceInterval = null;
+				refresh(_hypeDocumentIDE, document.documentElement);
+			},1);
+		})
+
+		childListObserver.observe(document.documentElement, { 
+			childList: true,
+			subtree: true,
+		});
+
+		/* handle updates on page while in same scene */
+		_updates = {};
+		var updateObserver = new MutationObserver(function(mutations) {
+			mutations.forEach(function (mutation) {
+				var currentValue =  mutation.target.getAttribute(mutation.attributeName);
+				if (currentValue && mutation.oldValue == currentValue && currentValue.indexOf('data-magic')!=-1){
+					var id = mutation.target.getAttribute('hypeobjectid');
+					if (_updates[id]) return;
+					_updates[id] = setTimeout(function(){
+						if (_debug) console.log(_extensionName+': rebuild after Hype refresh', mutation.target.id);
+						refreshElement(_hypeDocumentIDE, mutation.target);
+						delete(_updates[id]);
+					},1);
+				}
+			});
+		})
+
+		updateObserver.observe(document.documentElement, { 
+			attributes: true,
+			attributeOldValue: true,
+			attributeFilter:['hypeattributelastkeysplist'],
+			subtree: true,
+		});
+		
+		/* setup after dom has loaded first time */
+		window.addEventListener("DOMContentLoaded", function(event) {
+			if (_debug) console.log(_extensionName+': DOMContentLoaded');
+			
+			/* strip content after bubbled "blur" hence focusout */
+			document.addEventListener("focusout", function(event) {
+				if(!event.target.parentNode.hasAttribute('magic-edit')) return;
+				if(!event.target.hasAttribute('contenteditable')) return;
+				
+				if(event.target.parentNode.hasAttribute('data-magic-key')){
+					if(event.target) event.target.innerHTML = '';
+					return;
+				}
+				
+				if(event.target.parentNode.getAttribute('magic-edit') == 'innerHTML'){
+					var elms = event.target.querySelectorAll('[data-magic-key]');
+					if (!elms.length) return;
+					elms.forEach(function(elm){
+						elm.innerHTML = '';
+					});
+					return;
+				}	
+			});
+
+			/* monitor visibility of scene in Hype IDE - Thanks for the tip @jonathan */
+			document.addEventListener("visibilitychange", function(event) {
+				if (document.hidden) {
+					if (_debug) console.log(_extensionName+': Page hidden');
+				} else  {
+					if (_debug) console.log(_extensionName+': Page visible');
+					refresh(_hypeDocumentIDE, document.documentElement);
+				}
+			}, false);
+
+			/* initial setup with slight delay */
+			setTimeout(function(){
+				if (_debug) console.log(_extensionName+': initial refresh');
+				refresh(_hypeDocumentIDE, document.documentElement);
+				if (_debug) console.log(_extensionName+': changeObserver');
+				createChangeObserver(_hypeDocumentIDE, document.documentElement);
+				enableChangeObserver(_hypeDocumentIDE);
+			},1);
+
+			/* dynamic styles for IDE preview and deselect */
+			document.styleSheets[0].insertRule('[contenteditable="true"] [data-magic-key], [magic-edit="preview"] [contenteditable="true"]  {opacity:0.5}',0);
+			document.styleSheets[0].insertRule('[magic-edit]::before { position:absolute; opacity:1; content: "Data Magic"; text-align: center; font-size:7px; padding:3px; height: 8px; width: 40px; color:#fff; left: -2px; top: -16px; border-radius: 1px; background-color: #75A4EA;}',0);
+			window.getSelection().removeAllRanges();
+		});
+	}
+
+	function addDataHandler(name, handler){
+		if(!typeof name == 'string') return;
+		switch (typeof handler){
+			case 'object':
+				_handler[name] = Object.assign({}, _default['handlerMixin'], handler);
+				break;
+
+			case 'function':
+				_handler[name] = Object.assign({}, _default['handlerMixin'], _handler['text']);
+				_handler[name]['DataMagicPrepareForDisplay'] = handler;
+				break;
+		}
+	}
+
+	/* Reveal Public interface to window['HypeDataMagic'] */
 	return {
-		version: '1.2.7',
-		'mapDataAttribute' : mapDataAttribute,
-		'mapAttributeToSelector' : mapAttributeToSelector,
-		'observeBySelector' : observeBySelector,
-		'registerElementDecorator' : registerElementDecorator,
-		'setContent' : setContent,
-		'getRunningObserver': getRunningObserver,
+		version: '1.3.1',
+		'setData': setData,
+		'getData': getData,
+		'setDefault': setDefault,
+		'getDefault': getDefault,
+		'addDataHandler': addDataHandler,
 	};
 })();
