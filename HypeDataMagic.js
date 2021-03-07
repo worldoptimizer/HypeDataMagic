@@ -247,7 +247,6 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 *
 	 * @param {Object} data This parameter needs to be an object but it can hold nested values of any type. To use JSON data parse the data before you set it.
 	 * @param {String} source The source is a optional name to store the data. It defaults to the string "shared".
-	 * @return Returns the result of the event. Mostly this is an Boolean in case of Hype as it uses the events in an Observer pattern.
 	 */
 	function setData(data, source){
 		source = source || _default['source'];
