@@ -305,10 +305,10 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * This function allows to override a default
 	 *   
 	 * * source: String that defines the default source name. Defaults to 'shared'.
-	 * * fallbackImage: Function that return a fallback image url or base64 version. Defaults to transparent image.
-	 * * handlerMixin: Object that contains mixins added when calling addHandler. Defaults to {}.
-	 * * sourceRedirect: Object that contains map key:value of source redirects. Defaults to {}.
-	 * * customDataForPreview: Object that contains preview value for custom data (only displayed in IDE). Defaults to {}.
+	 * * `fallbackImage`: Function that return a fallback image url or base64 version. Defaults to transparent image.
+	 * * `handlerMixin`: Object that contains mixins added when calling addHandler. Defaults to {}.
+	 * * `sourceRedirect`: Object that contains map key:value of source redirects. Defaults to {}.
+	 * * `customDataForPreview`: Object that contains preview value for custom data (only displayed in IDE). Defaults to {}.
 	 *
 	 * @param {String} key This is the key to override
 	 * @param {String|Function|Object} value This is the value to set for the key
@@ -364,10 +364,10 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * This function allows to add custom data handler.
 	 * These following keys can be defined if supplied as an array
 	 *
-	 * * DataMagicPreviewUpdate: Gets fired only in the IDE
-	 * * DataMagicPrepareForDisplay: Gets fired along HypeScenePrepareForDisplay
-	 * * DataMagicLoad: Gets fired along HypeSceneLoad
-	 * * DataMagicUnload: Gets fired along HypeSceneUnload
+	 * * `DataMagicPreviewUpdate`: Gets fired only in the IDE
+	 * * `DataMagicPrepareForDisplay`: Gets fired along HypeScenePrepareForDisplay
+	 * * `DataMagicLoad`: Gets fired along HypeSceneLoad
+	 * * `DataMagicUnload`: Gets fired along HypeSceneUnload
 	 *
 	 * If the handler is only set as an functions it defaults to setting
 	 *		DataMagicPrepareForDisplay
