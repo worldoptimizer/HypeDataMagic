@@ -1,6 +1,6 @@
 /*!
-Hype DataMagic (Core) 1.3.1
-copyright (c) 2020 Max Ziebell, (https://maxziebell.de). MIT-license
+Hype DataMagic (Core) 1.3.2
+copyright (c) 2021 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
 /*
@@ -11,6 +11,7 @@ copyright (c) 2020 Max Ziebell, (https://maxziebell.de). MIT-license
 -- switched to semantic versioning
 * 1.3.0 Multiple updates on IDE preview
 * 1.3.1 Fixed IDE preview existing symbols, cleanups
+* 1.3.2 Fixed event data bug and unloads, allow event returns
 
 */
 if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
@@ -23,9 +24,9 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	var _extensionName = 'Hype Data Magic';
 	var _data = {};
 	var _observer = {};
-	var _onSceneLoad = [];
 	var _hypeDocumentIDE;
 	
+	// defaults can be overriden with setDefault
 	var _default = {
 		source: 'shared',		
 		fallbackImage: function(){
@@ -39,7 +40,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	var _handler = {
 		'text': {
 			DataMagicPrepareForDisplay: function(hypeDocument, element, event){
-				if (element.innerHTML != event.data) element.innerHTML = event.data;
+				if (element.innerHTML != event.data && hasNoHypeElementsAsChild(element)) element.innerHTML = event.data;
 			},
 			DataMagicUnload: function(hypeDocument, element, event){
 				if (hasNoHypeElementsAsChild(element)) element.innerHTML = '';
@@ -66,24 +67,26 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
 	function callHandler(hypeDocument, element, event){
 		if (!event.handler) return;
+
+		var returnFromHandler;
 		if (typeof _handler[event.handler] == 'object') {
 			/* handle event if defined directly */
 			if (typeof _handler[event.handler][event.type] == 'function') {
 				try {
-					_handler[event.handler][event.type](hypeDocument, element, event);
+					returnFromHandler = _handler[event.handler][event.type](hypeDocument, element, event);
 				} catch (e){
 					console.log('There was an error in your handler "'+event.handler+'": ',e);
 				}
-				return;
+				return returnFromHandler;
 			}
 			/* fallback on DataMagicPrepareForDisplay for IDE if DataMagicPreviewUpdate is not defined */
 			if (_isHypeIDE && typeof _handler[event.handler]['DataMagicPrepareForDisplay'] == 'function'){
 				try {
-					_handler[event.handler]['DataMagicPrepareForDisplay'](hypeDocument, element, event);
+					returnFromHandler = _handler[event.handler]['DataMagicPrepareForDisplay'](hypeDocument, element, event);
 				} catch (e){
 					console.log('There was an error in your handler "'+event.handler+'": ',e);
 				}
-				return;
+				return returnFromHandler;
 			}
 		}
 	}
@@ -91,39 +94,59 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	function updateMagicKey(hypeDocument, element, event){
 		if (!element.getAttribute('data-magic-key')) return;
 
-		var source = findMagicAttributeAndCache(element, 'data-magic-source') || _default['source'];
+		// find the source we are working from and handle special source customData
+		var source = findMagicAttribute(element, 'data-magic-source') || _default['source'];
 		var key = trim(element.getAttribute('data-magic-key'));
 		var data = (source == 'customData')? hypeDocument.customData : getData(source);
 		
+		// is we have a source proceed
 		if (data){
-			var branchkey = findMagicAttributeAndCache(element, 'data-magic-branch');
+			// look if we have a brach an combine it with our key
+			var branchkey = findMagicAttribute(element, 'data-magic-branch');
 			var branch = branchkey? resolveObjectByKey(hypeDocument, data, branchkey) : data;
 			var branchdata = resolveObjectByKey(hypeDocument, branch, key);
 			
 			if (branchdata!=null) {
-				if (typeof branchdata != 'object') {
-					var prefix = element.getAttribute('data-magic-prefix') || '';
-					var append = element.getAttribute('data-magic-append') || '';
-					branchdata = prefix + branchdata + append;
+				// check if we have a object as data source
+				if (typeof branchdata != 'object') {					
+					var prefix = element.getAttribute('data-magic-prefix');
+					var append = element.getAttribute('data-magic-append');
+					if (prefix || append) branchdata = prefix + branchdata + append;
+					
 				}
 
-				event = Object.assign(event||{}, {
+				// construct our event object by creating a new one
+				event = Object.assign({}, event, {
 					'data': branchdata, 
 					'source': source, 
 					'key': key,
 				});
 				
+				// define types of events to be fired
 				var types;
 				if (event.type){
+					// reuse Hype events as our own by renaming
 					types = event.type.replace('HypeScene', 'DataMagic').split();
 				} else {
+					// create event if not given (direct refresh etc.)
 					types = _isHypeIDE? ['DataMagicPreviewUpdate']:['DataMagicPrepareForDisplay','DataMagicLoad'];
 				}
 				
-				var handlers = (element.getAttribute('data-magic-handler') || branchdata.handler || 'text').split(',');
+				// extract handler string as array and loop over it
+				var handlers = (element.getAttribute('data-magic-handler') || 'text').split(',');
+				
+				// loop over types array
 				types.forEach(function(type){
+					// loop over handler array
+					// allow returns from handlers to be mixed in to the next item in the call stack
+					var returnFromHandler;
 					handlers.forEach(function(handler){
-						callHandler(hypeDocument, element, Object.assign(event, {type:type, 'handler': handler.trim()}));
+						returnFromHandler = callHandler(hypeDocument, element, Object.assign(
+							{}, event, returnFromHandler, {
+								type: type, 
+								'handler': handler.trim()
+							}
+						));
 					})
 				})
 				
@@ -134,10 +157,23 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	}
 
 	function unloadMagicKey(hypeDocument, element, event){
-		event = event || {};
-		if (!event.type) event.type = 'DataMagicUnload';
-		event.handler = event.oldHandler || element.getAttribute('data-magic-handler') || 'text';
-		callHandler(hypeDocument, element, event)
+		// make sure we have an object
+		event = Object.assign({}, event);
+
+		// extract handler string as array
+		handlers = (event.oldHandler || element.getAttribute('data-magic-handler')  || 'text').split(',');
+
+		// loop over handler array
+		// allow returns from handlers to be mixed in to the next item in the call stack
+		var returnFromHandler;
+		handlers.forEach(function(handler){
+			returnFromHandler = callHandler(hypeDocument, element, Object.assign(
+				{}, event, returnFromHandler, {
+					type: 'DataMagicUnload', 
+					'handler': handler.trim()
+				}
+			));
+		})
 	}
 
 	function hasNoHypeElementsAsChild(element){
@@ -256,7 +292,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	/**
 	 * This function allows to get data
 	 *
-	 * @param {String} source Th is the name of the data you want to access. It defaults to the string "shared".
+	 * @param {String} source This the name of the data you want to access. It defaults to the string "shared".
 	 * @return Returns the object Hype Data Magic currently has stored under the given source name.
 	 */
 	function getData(source){
@@ -265,10 +301,28 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		return _data[_default['source']] || null;
 	}
 
+	/**
+	 * This function allows to override a default
+	 *   
+	 *		source: String that defines the default source name. Defaults to 'shared'.
+	 *		fallbackImage: Function that return a fallback image url or base64 version. Defaults to transparent image.
+	 *		handlerMixin: Object that contains mixins added when calling addHandler. Defaults to {}.
+	 *		sourceRedirect: Object that contains map key:value of source redirects. Defaults to {}.
+	 *		customDataForPreview: Object that contains preview value for custom data (only displayed in IDE). Defaults to {}.
+	 *
+	 * @param {String} key This is the key to override
+	 * @param {String|Function|Object} value This is the value to set for the key
+	 */
 	function setDefault(key, value){
 		_default[key] = value;
 	}
 
+	/**
+	 * This function returns the value of set default
+	 *
+	 * @param {String} key This the key of the default.
+	 * @return Returns the current value for a default with a certain key.
+	 */
 	function getDefault(key){
 		return _default[key];
 	}
@@ -295,7 +349,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		return obj;
 	}
 
-	function findMagicAttributeAndCache(element, attr) {
+	function findMagicAttribute(element, attr) {
 		if (!element || !element.id) return null;
 		while (element.parentNode && !element.classList.contains('HYPE_scene')) {
 			if (element.hasAttribute(attr)) {
@@ -304,6 +358,35 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			element = element.parentNode;
 		};
 		return null;
+	}
+
+	/**
+	 * This function allows to add custom data handler.
+	 * These following keys can be defined if supplied as an array
+	 *
+	 *		DataMagicPreviewUpdate: Gets fired only in the IDE
+	 *		DataMagicPrepareForDisplay: Gets fired along HypeScenePrepareForDisplay
+	 *		DataMagicLoad: Gets fired along HypeSceneLoad
+	 *		DataMagicUnload: Gets fired along HypeSceneUnload
+	 *
+	 * If the handler is only set as an functions it defaults to setting
+	 *		DataMagicPrepareForDisplay
+	 *
+	 * @param {String} name The name your handler is identified by in data-magic-handler
+	 * @param {Function|Object} handler This is either an object with functions or a single function
+	 */
+	function addDataHandler(name, handler){
+		if(!typeof name == 'string') return;
+		switch (typeof handler){
+			case 'object':
+				_handler[name] = Object.assign({}, _default['handlerMixin'], handler);
+				break;
+
+			case 'function':
+				_handler[name] = Object.assign({}, _default['handlerMixin'], _handler['text']);
+				_handler[name]['DataMagicPrepareForDisplay'] = handler;
+				break;
+		}
 	}
 
 	function HypeDocumentLoad (hypeDocument, element, event) {
@@ -375,12 +458,6 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
 	function HypeSceneLoad (hypeDocument, element, event) {
 		refresh(hypeDocument, element, event);
-		if (_onSceneLoad){
-			_onSceneLoad.forEach(function(fnc){
-				fnc();
-			});
-			_onSceneLoad = null;
-		}
 		enableChangeObserver(hypeDocument);
 	}
 	
@@ -446,7 +523,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 								/* add preview to innerHTML when double clicked */
 								element.parentNode.setAttribute('magic-edit','preview');
 								setTimeout(function(){
-									var branch = findMagicAttributeAndCache(element.parentNode, 'data-magic-branch');
+									var branch = findMagicAttribute(element.parentNode, 'data-magic-branch');
 									var placeholder = '<!-- Hype Data magic: This is only a preview placeholder and edits are ignored!';
 									if (branch) placeholder += ' This key resides on the branch "'+branch+'"';
 									placeholder += ' -->';
@@ -476,7 +553,6 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 								setTimeout(function(){	
 									var elms = element.parentNode.querySelectorAll('[data-magic-key]');
 									elms.forEach(function(elm){
-										//elm.removeAttribute('magic-rebuild-time');
 										elm.innerHTML = elm.getAttribute('data-magic-key');
 									});
 								}, 1);
@@ -591,27 +667,29 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		});
 	}
 
-	function addDataHandler(name, handler){
-		if(!typeof name == 'string') return;
-		switch (typeof handler){
-			case 'object':
-				_handler[name] = Object.assign({}, _default['handlerMixin'], handler);
-				break;
 
-			case 'function':
-				_handler[name] = Object.assign({}, _default['handlerMixin'], _handler['text']);
-				_handler[name]['DataMagicPrepareForDisplay'] = handler;
-				break;
-		}
-	}
-
-	/* Reveal Public interface to window['HypeDataMagic'] */
-	return {
-		version: '1.3.1',
+	/**
+	 * @typedef {Object} HypeDataMagic
+	 * @property {String} version Version of the extension
+	 * @property {Function} setData This function allows to set data by passing in an object. An optional data source name can also be used (name defaults to "shared")
+	 * @property {Function} getData This function allows to get the data for a specific data source. If no data source name is supplied it defaults to "shared"
+	 * @property {Function} setDefault This function allows to set a default value (see function description)
+	 * @property {Function} getDefault This function allows to get a default value
+	 * @property {Function} addDataHandler This function allows to define your own data handler either as an object with functions or a single function
+	 */
+	var HypeDataMagic = {
+		version: '1.3.2',
 		'setData': setData,
 		'getData': getData,
 		'setDefault': setDefault,
 		'getDefault': getDefault,
 		'addDataHandler': addDataHandler,
 	};
+
+	/** 
+	 * Reveal Public interface to window['HypeDataMagic']
+	 * return {HypeGlobalBehavior}
+	 */
+	return HypeDataMagic;
+	
 })();
