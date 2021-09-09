@@ -1,5 +1,5 @@
 /*!
-Hype DataMagic (Core) 1.3.2
+Hype DataMagic (Core) 1.3.3
 copyright (c) 2021 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -12,6 +12,7 @@ copyright (c) 2021 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.3.0 Multiple updates on IDE preview
 * 1.3.1 Fixed IDE preview existing symbols, cleanups
 * 1.3.2 Fixed event data bug and unloads, allow event returns
+* 1.3.3 Added forceRedraw (bugfix), HypeDataMagic.refresh and auto refresh
 
 */
 if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
@@ -35,8 +36,18 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		handlerMixin: {},
 		sourceRedirect: {},
 		customDataForPreview: {},
+		refreshOnSetData : true,
+		forceRedrawElement : true,
+		forceRedrawDocument : false,
 	};
 	
+	var forceRedraw = function(element){
+		var disp = element.style.display;
+		element.style.display = 'none';
+		void 0!=element.offsetHeight;
+		element.style.display = disp;
+	};
+
 	var _handler = {
 		'text': {
 			DataMagicPrepareForDisplay: function(hypeDocument, element, event){
@@ -264,18 +275,21 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		var elms = element.querySelectorAll('[data-magic-key]');
 		elms.forEach(function(elm){
 			updateMagicKey(hypeDocument, elm, event);
+			if (getDefault('forceRedrawElement')==true) forceRedraw(elm);
 		});
 	}
 
 	function refreshElement(hypeDocument, element, event){
 		if (!element) return;
 		updateMagicKey(hypeDocument, element, event);
+		if (getDefault('forceRedrawElement')==true) forceRedraw(element);
 	}
 
 	function refresh(hypeDocument, element, event){
 		if (!element) return;
 		refreshElement(hypeDocument, element, event);
-		refreshDescendants(hypeDocument, element, event)
+		refreshDescendants(hypeDocument, element, event);
+		if (getDefault('forceRedrawDocument')==true) forceRedraw(element);
 	}
 
 	/**
@@ -287,7 +301,26 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	function setData(data, source){
 		source = source || _default['source'];
 		_data[source] = data;
+		if (getDefault('refreshOnSetData')==true) refreshFromWindowLevel();
 	}
+
+	/**
+	 * This function allows to refesh the view from the window level using HypeDataMagic.refresh
+	 *
+	 * @param {Object} hypeDocument This parameter is optional and should be a hypeDocument object to refresh. If no paramter is provided it will refresh all documents found under window.HYPE.documents
+	 */
+	function refreshFromWindowLevel(hypeDocument){
+		//refresh explicit document
+		if (hypeDocument && hypeDocument.hasOwnProperty('refresh')){
+			hypeDocument.refresh();
+		
+		//refresh all documents
+		} else if (window.hasOwnProperty('HYPE')){
+			Object.values(window.HYPE.documents).forEach(function(hypeDocument){
+				hypeDocument.refresh();
+			});
+		}
+	}	
 
 	/**
 	 * This function allows to get data
@@ -673,14 +706,16 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @property {String} version Version of the extension
 	 * @property {Function} setData This function allows to set data by passing in an object. An optional data source name can also be used (name defaults to "shared")
 	 * @property {Function} getData This function allows to get the data for a specific data source. If no data source name is supplied it defaults to "shared"
+	 * @property {Function} refresh This function allows force a refresh on all Hype document from the window level. You can also pass in a specific hypeDocument object to limit the scope.
 	 * @property {Function} setDefault This function allows to set a default value (see function description)
 	 * @property {Function} getDefault This function allows to get a default value
 	 * @property {Function} addDataHandler This function allows to define your own data handler either as an object with functions or a single function
 	 */
 	var HypeDataMagic = {
-		version: '1.3.2',
+		version: '1.3.3',
 		'setData': setData,
 		'getData': getData,
+		'refresh': refreshFromWindowLevel,
 		'setDefault': setDefault,
 		'getDefault': getDefault,
 		'addDataHandler': addDataHandler,
