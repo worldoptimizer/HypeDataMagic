@@ -1,5 +1,5 @@
 /*!
-Hype DataMagic (Core) 1.3.3
+Hype DataMagic (Core) 1.3.4
 copyright (c) 2021 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -13,6 +13,8 @@ copyright (c) 2021 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.3.1 Fixed IDE preview existing symbols, cleanups
 * 1.3.2 Fixed event data bug and unloads, allow event returns
 * 1.3.3 Added forceRedraw (bugfix), HypeDataMagic.refresh and auto refresh
+* 1.3.4 Ending handler with () forwards them to hypeDocument.functions, exposed resolveObjectByKey 
+*       and added and exposed resolveKeyToArray (keys can now be arrays), fixed append/prepend bug
 
 */
 if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
@@ -79,6 +81,19 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	function callHandler(hypeDocument, element, event){
 		if (!event.handler) return;
 
+		if (event.handler.slice(-2)=='()'){
+			if (!_isHypeIDE && hypeDocument.functions){
+				try {
+					returnFromHandler = hypeDocument.functions()[event.handler.slice(0,-2)](hypeDocument, element, event);
+				} catch (e){
+					console.log('There was an error in your handler "'+event.handler+'": ',e);
+				}
+				return returnFromHandler;
+			} else{
+				return;
+			}
+		}
+
 		var returnFromHandler;
 		if (typeof _handler[event.handler] == 'object') {
 			/* handle event if defined directly */
@@ -114,15 +129,17 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		if (data){
 			// look if we have a brach an combine it with our key
 			var branchkey = findMagicAttribute(element, 'data-magic-branch');
-			var branch = branchkey? resolveObjectByKey(hypeDocument, data, branchkey) : data;
-			var branchdata = resolveObjectByKey(hypeDocument, branch, key);
+			var branch = branchkey? resolveObjectByKey(data, branchkey) : data;
+			var branchdata = resolveObjectByKey(branch, key);
 			
 			if (branchdata!=null) {
 				// check if we have a object as data source
 				if (typeof branchdata != 'object') {					
-					var prefix = element.getAttribute('data-magic-prefix');
-					var append = element.getAttribute('data-magic-append');
-					if (prefix || append) branchdata = prefix + branchdata + append;
+					var prefix = element.getAttribute('data-magic-prefix') || '';
+					var append = element.getAttribute('data-magic-append') || '';
+					if (prefix || append) {
+						branchdata = prefix + branchdata + append;
+					}
 					
 				}
 
@@ -326,12 +343,15 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * This function allows to get data
 	 *
 	 * @param {String} source This the name of the data you want to access. It defaults to the string "shared".
+	 * @param {String} key This (optional) key resolves the data given a key
 	 * @return Returns the object Hype Data Magic currently has stored under the given source name.
 	 */
-	function getData(source){
+	function getData(source, key){
 		if (_default['sourceRedirect'][source]) return _data[_default['sourceRedirect'][source]] || null;
-		if (source) return _data[source] || null;
-		return _data[_default['source']] || null;
+		if (!source) source = _default['source'];
+		var data = _data[source] || null;
+		if (data && key) return resolveObjectByKey(data, key);
+		return data;
 	}
 
 	/**
@@ -365,23 +385,50 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		return str.trim();
 	}
 
-	function resolveObjectByKey(hypeDocument, obj, key) {
-		if (typeof obj!='object') return;
+	/**
+	 * This low level function returns a array resolved based on a string key notation similar to actual code
+	 *
+	 * @param {String} obj This the object the key should act on.
+	 * @param {String} key This the key to resolve the object by in string form.
+	 * @return Returns the current value for a default with a certain key.
+	 */
+	function resolveKeyToArray(key){
+		if(Array.isArray(key)) return key.reduce(function(a,b){
+			return a.concat(resolveKeyToArray(b));
+		},[]);
 		if (typeof key != 'string') return;
 		key = key.replace(/\[(\d+)\]/g, function(match, key){
 			return '.'+parseInt(key);
 		});
 		key = key.replace(/^\./, '');
-		var parts = key.split('.');
-		for (var i = 0, n = parts.length; i < n; ++i) {
-			if (typeof obj!='object') return;
-			key = parts[i];
-			if (!obj.hasOwnProperty(key)) return;
-			obj = obj[key];
-		}
-		return obj;
+		return key.split('.');
 	}
 
+	/**
+	 * This low level function returns resolves an object based on a string key notation similar to actual code and returns the value or branch if successful
+	 *
+	 * @param {String} obj This is the object the key should act on.
+	 * @param {String} key This is key based on notation similar to actual code to resolve the object with. The key can also be provided as a pre-processed array of strings.
+	 * @return Returns the current value for a default with a certain key.
+	 */
+	function resolveObjectByKey(obj, key) {
+		if (typeof obj != 'object') return;
+		var parts = resolveKeyToArray(key);
+		if (parts) {
+			return parts.reduce(function (o,i) {
+				return o && o.hasOwnProperty(i)? o[i] : null
+			}, obj);
+		}
+	}
+
+	/**
+	 * This low level function traverses up the DOM tree to find and return a specific attribute. It aborts at the scene element (or window level depending where you start the search).
+	 * This function is currently not exposed to the API, but still documented
+	 *
+	 * @param {String} element This the object the key should act on.
+	 * @param {String} attr This is the name of the attribute to search for going up the dom tree.
+	 * @return Returns the current value for a default with a certain key.
+	 */
 	function findMagicAttribute(element, attr) {
 		if (!element || !element.id) return null;
 		while (element.parentNode && !element.classList.contains('HYPE_scene')) {
@@ -477,6 +524,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 				element.innerHTML = content;
 			}
 		}
+
 
 		if (!_isHypeIDE){
 			createChangeObserver(hypeDocument, element);
@@ -710,15 +758,20 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @property {Function} setDefault This function allows to set a default value (see function description)
 	 * @property {Function} getDefault This function allows to get a default value
 	 * @property {Function} addDataHandler This function allows to define your own data handler either as an object with functions or a single function
+	 * @property {Function} resolveObjectByKey This low level function returns resolves an object based on a string key notation similar to actual code and returns the value or branch if successful. You can also use an array of strings as the key
+	 * @property {Function} resolveKeyToArray This low level function returns a array resolved based on a string key notation similar to actual code. Given an array as key it works recursive while resolving the input
 	 */
 	var HypeDataMagic = {
-		version: '1.3.3',
+		version: '1.3.4',
 		'setData': setData,
 		'getData': getData,
 		'refresh': refreshFromWindowLevel,
 		'setDefault': setDefault,
 		'getDefault': getDefault,
 		'addDataHandler': addDataHandler,
+		/* low level */
+		'resolveObjectByKey': resolveObjectByKey,
+		'resolveKeyToArray': resolveKeyToArray
 	};
 
 	/** 
