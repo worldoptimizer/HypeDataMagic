@@ -1,5 +1,5 @@
 /*!
-Hype DataMagic (Core) 1.3.4
+Hype DataMagic (Core) 1.3.5
 copyright (c) 2021 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -15,7 +15,12 @@ copyright (c) 2021 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.3.3 Added forceRedraw (bugfix), HypeDataMagic.refresh and auto refresh
 * 1.3.4 Ending handler with () forwards them to hypeDocument.functions, exposed resolveObjectByKey 
 *       and added and exposed resolveKeyToArray (keys can now be arrays), fixed append/prepend bug
-
+* 1.3.5 Function in data constructs are now resolved, new handler 'variables' resolves to customData,
+*       exposed default 'handler', to change use HypeDataMagic.setDefault('handler', 'text'),
+*       new default 'customData' is used to init hypeDocument.customData (in addition to old 'customDataForPreview'),
+*       new default 'allowDataFunctions' is set to true and allows for functions in data,
+*       new default 'allowVariables' is set to true and allows for variables in default handlers image and text,
+*       exposed low level functions resolveVariablesInString, resolveVariablesInObject and cloneObject
 */
 if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
@@ -35,12 +40,16 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		fallbackImage: function(){
 			return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 		},
+		handler:'text',
+		variables: null,
 		handlerMixin: {},
 		sourceRedirect: {},
-		customDataForPreview: {},
-		refreshOnSetData : true,
-		forceRedrawElement : true,
-		forceRedrawDocument : false,
+		refreshOnSetData: true,
+		forceRedrawElement: true,
+		forceRedrawDocument: false,
+		allowDataFunctions: true,
+		allowVariables: true,
+		resourcesFolderNameForPreview: '',
 	};
 	
 	var forceRedraw = function(element){
@@ -50,19 +59,40 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		element.style.display = disp;
 	};
 
+
 	var _handler = {
 		'text': {
 			DataMagicPrepareForDisplay: function(hypeDocument, element, event){
-				if (element.innerHTML != event.data && hasNoHypeElementsAsChild(element)) element.innerHTML = event.data;
+				if (element.innerHTML != event.data && hasNoHypeElementsAsChild(element)) {
+					if (_default['allowVariables']) {
+						event.data = resolveVariablesInString(event.data, Object.assign( 
+							_default['variables'] || hypeDocument.customData, 
+							{ resourcesFolderName: hypeDocument.resourcesFolderURL()}
+						));
+					}
+					element.innerHTML = event.data;
+				}
 			},
 			DataMagicUnload: function(hypeDocument, element, event){
 				if (hasNoHypeElementsAsChild(element)) element.innerHTML = '';
+			}
+		},
+		'variables': {
+			DataMagicPrepareForDisplay: function (hypeDocument, element, event){
+				if (_default['allowVariables']) event.data = resolveVariablesInString(event.data, _default['variables'] || hypeDocument.customData);
+				return event;
 			}
 		},
 		'image': {
 			DataMagicPrepareForDisplay: function (hypeDocument, element, event){
 				if (typeof event.data == 'string') event.data = {src: event.data};
 				if (!event.data.src) event.data.src = element.dataset.fallbackImage || _default.fallbackImage();
+				if (_default['allowVariables']) {
+					event.data = resolveVariablesInObject(event.data, Object.assign( 
+						_default['variables'] || hypeDocument.customData, 
+						{ resourcesFolderName: hypeDocument.resourcesFolderURL()}
+					));
+				}
 				element.innerHTML = '';
 				if (hypeDocument.getElementProperty(element, 'background-image')!=event.data.src) {
 					element.style.backgroundRepeat = 'no-repeat';
@@ -134,13 +164,12 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			
 			if (branchdata!=null) {
 				// check if we have a object as data source
-				if (typeof branchdata != 'object') {					
+				if (typeof (branchdata) != 'object' && typeof (branchdata) != 'function') {					
 					var prefix = element.getAttribute('data-magic-prefix') || '';
 					var append = element.getAttribute('data-magic-append') || '';
 					if (prefix || append) {
 						branchdata = prefix + branchdata + append;
 					}
-					
 				}
 
 				// construct our event object by creating a new one
@@ -161,7 +190,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 				}
 				
 				// extract handler string as array and loop over it
-				var handlers = (element.getAttribute('data-magic-handler') || 'text').split(',');
+				var handlers = (element.getAttribute('data-magic-handler') ||  _default['handler']).split(',');
 				
 				// loop over types array
 				types.forEach(function(type){
@@ -172,7 +201,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 						returnFromHandler = callHandler(hypeDocument, element, Object.assign(
 							{}, event, returnFromHandler, {
 								type: type, 
-								'handler': handler.trim()
+								handler: handler.trim()
 							}
 						));
 					})
@@ -189,7 +218,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		event = Object.assign({}, event);
 
 		// extract handler string as array
-		handlers = (event.oldHandler || element.getAttribute('data-magic-handler')  || 'text').split(',');
+		handlers = (event.oldHandler || element.getAttribute('data-magic-handler')  ||  _default['handler']).split(',');
 
 		// loop over handler array
 		// allow returns from handlers to be mixed in to the next item in the call stack
@@ -198,7 +227,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			returnFromHandler = callHandler(hypeDocument, element, Object.assign(
 				{}, event, returnFromHandler, {
 					type: 'DataMagicUnload', 
-					'handler': handler.trim()
+					handler: handler.trim()
 				}
 			));
 		})
@@ -292,21 +321,21 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		var elms = element.querySelectorAll('[data-magic-key]');
 		elms.forEach(function(elm){
 			updateMagicKey(hypeDocument, elm, event);
-			if (getDefault('forceRedrawElement')==true) forceRedraw(elm);
+			if ( _default['forceRedrawElement']==true) forceRedraw(elm);
 		});
 	}
 
 	function refreshElement(hypeDocument, element, event){
 		if (!element) return;
 		updateMagicKey(hypeDocument, element, event);
-		if (getDefault('forceRedrawElement')==true) forceRedraw(element);
+		if ( _default['forceRedrawElement']==true) forceRedraw(element);
 	}
 
 	function refresh(hypeDocument, element, event){
 		if (!element) return;
 		refreshElement(hypeDocument, element, event);
 		refreshDescendants(hypeDocument, element, event);
-		if (getDefault('forceRedrawDocument')==true) forceRedraw(element);
+		if ( _default['forceRedrawDocument']==true) forceRedraw(element);
 	}
 
 	/**
@@ -318,7 +347,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	function setData(data, source){
 		source = source || _default['source'];
 		_data[source] = data;
-		if (getDefault('refreshOnSetData')==true) refreshFromWindowLevel();
+		if ( _default['refreshOnSetData']==true) refreshFromWindowLevel();
 	}
 
 	/**
@@ -413,13 +442,68 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 */
 	function resolveObjectByKey(obj, key) {
 		if (typeof obj != 'object') return;
-		var parts = resolveKeyToArray(key);
-		if (parts) {
-			return parts.reduce(function (o,i) {
-				return o && o.hasOwnProperty(i)? o[i] : null
-			}, obj);
+		var keyParts = resolveKeyToArray(key);
+		var objValue = obj;
+		var i = 0;
+		while (objValue!==undefined && i < keyParts.length) {
+			objValue = objValue[keyParts[i]];
+			if (_default['allowDataFunctions'] && typeof objValue === 'function') {
+				objValue = objValue();
+			}
+			i++;
 		}
+		return objValue;
 	}
+	
+	/**
+	 * Resolve variables in object using resolveVariablesInString recursively and a variables lookup
+	 *
+	 */  
+	function resolveVariablesInObject(obj, variables, noClone) {
+		if (typeof obj === 'object') {
+			if (!noClone) obj = cloneObject(obj);
+			Object.keys(obj).forEach(function(key) {
+				obj[key] = resolveVariablesInObject(obj[key], variables, true);
+			});
+		} else if (typeof obj === 'function') {
+			obj[key] = resolveVariablesInObject(obj[key](), variables, true);
+		} else if (typeof obj === 'string') {
+			obj = resolveVariablesInString(obj, variables);
+		}
+		return obj;
+	}
+	
+	/**
+	 * Resolve variables in string using a variable lookup
+	 *
+	 */  
+	function resolveVariablesInString(str, variables) {
+		if (typeof str === 'string') {
+			var matches = str.match(/\$\{(.*?)\}/g);
+			if (matches) {
+				matches.forEach(function(match) {
+					var variableKey = match.replace(/\$\{|\}|\(\)/g, '');
+					var variableValue = resolveObjectByKey(variables, variableKey);
+					str = str.replace(match, variableValue);
+				});
+			}
+		}
+		return str;
+	}
+
+	/**
+	 * clone an object
+	 *
+	 */  
+	function cloneObject(obj) {
+		if (null == obj || "object" != typeof obj) return obj;
+		var copy = obj.constructor();
+		for (var attr in obj) {
+			if (obj.hasOwnProperty(attr)) copy[attr] = cloneObject(obj[attr]);
+		}
+		return copy;
+	}
+
 
 	/**
 	 * This low level function traverses up the DOM tree to find and return a specific attribute. It aborts at the scene element (or window level depending where you start the search).
@@ -524,7 +608,14 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 				element.innerHTML = content;
 			}
 		}
-
+		
+		/* 
+		new since 1.3.5: is _default('customData') is set it is used 
+		to init hypeDocument.customData
+		*/
+		if ( _default['customData']) {
+			hypeDocument.customData = _default['customData'];
+		}
 
 		if (!_isHypeIDE){
 			createChangeObserver(hypeDocument, element);
@@ -570,15 +661,28 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			documentId: function(){
 				return 'HypeSceneEditor';
 			},
+			resourcesFolderURL: function(){
+				return _default['resourcesFolderNameForPreview'] || window.location.href.replace(/\/$/, '')
+			},
 		}, {
 			get: function(obj, prop) {
-				if (prop === 'customData') return _default['customDataForPreview'];
+				if (prop === 'customData') return _default['customDataForPreview'] ||  _default['customData'] || {};
 				return obj[prop];
 			},
 		});
 
+		/* unload all handler that have a unload */
+		var temp = _handler;
+		_handler= {};
+		for (var key in temp) {
+			if (temp[key].DataMagicUnload) _handler[key] = { DataMagicPrepareForDisplay: temp[key].DataMagicUnload }
+		}
+		HypeDocumentLoad(_hypeDocumentIDE, document.documentElement);
+		_handler = temp;
+				
 		/* fire fake document load event for IDE */
 		if (_debug) console.log(_extensionName+': HypeDocumentLoad (extending _hypeDocumentIDE)');
+		
 		HypeDocumentLoad(_hypeDocumentIDE, document.documentElement);
 
 		/* setup listener for edits on element content(dblClick)/innerHTML(pen) using data magic */
@@ -589,7 +693,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
 					if (element.parentNode && mutation.attributeName == 'contenteditable'){
 						
-						/* handle edits on rectangles with user set data-magic-key in the identity HTML attributes*/
+						/* handle edits on rectangles with user set data-magic-key in the identity HTML attributes */
 						if(element.parentNode.hasAttribute('data-magic-key')){
 							if(element.getAttribute('contenteditable') == 'false' && mutation.oldValue =='true'){
 								if (_debug) console.log(_extensionName+': innerHTML rebuild (after edit)');
@@ -759,10 +863,10 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @property {Function} getDefault This function allows to get a default value
 	 * @property {Function} addDataHandler This function allows to define your own data handler either as an object with functions or a single function
 	 * @property {Function} resolveObjectByKey This low level function returns resolves an object based on a string key notation similar to actual code and returns the value or branch if successful. You can also use an array of strings as the key
-	 * @property {Function} resolveKeyToArray This low level function returns a array resolved based on a string key notation similar to actual code. Given an array as key it works recursive while resolving the input
+	 * @property {Function} resolveKeyToArray This low level function returns an array resolved based on a string key notation similar to actual code. Given an array as key it works recursive while resolving the input
 	 */
 	var HypeDataMagic = {
-		version: '1.3.4',
+		version: '1.3.5',
 		'setData': setData,
 		'getData': getData,
 		'refresh': refreshFromWindowLevel,
@@ -771,7 +875,10 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		'addDataHandler': addDataHandler,
 		/* low level */
 		'resolveObjectByKey': resolveObjectByKey,
-		'resolveKeyToArray': resolveKeyToArray
+		'resolveKeyToArray': resolveKeyToArray,
+		'resolveVariablesInString': resolveVariablesInString,
+		'resolveVariablesInObject': resolveVariablesInObject,
+		'cloneObject': cloneObject,
 	};
 
 	/** 
