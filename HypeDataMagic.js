@@ -869,7 +869,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			if (i >= steps.length) i = i % steps.length;
 			if (i < 0) i = steps.length + (i % steps.length);
 			
-			const step = steps[i];
+			let step = steps[i];
 			i += n;
 			
 			if (typeof step === "function") step = step();
