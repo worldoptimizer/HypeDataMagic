@@ -1,6 +1,6 @@
 /*!
-Hype DataMagic (Core) 1.3.5
-copyright (c) 2021 Max Ziebell, (https://maxziebell.de). MIT-license
+Hype DataMagic 1.3.6
+copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
 /*
@@ -20,7 +20,20 @@ copyright (c) 2021 Max Ziebell, (https://maxziebell.de). MIT-license
 *       new default 'customData' is used to init hypeDocument.customData (in addition to old 'customDataForPreview'),
 *       new default 'allowDataFunctions' is set to true and allows for functions in data,
 *       new default 'allowVariables' is set to true and allows for variables in default handlers image and text,
-*       exposed low level functions resolveVariablesInString, resolveVariablesInObject and cloneObject
+*       exposed low-level functions resolveVariablesInString, resolveVariablesInObject and cloneObject
+* 1.3.6 Added dataset variables and the handler 'dataset',
+*       Added data-magic-sets to enable comma separated queries for foreign datasets, parent(s) and closest()
+*       Added default refreshOnCustomData and reactivity to custom data,
+*       Exposed HypeDataMagic.enableReactiveObject (low-level) allowing to create you own reactive objects,
+*       Exposed HypeDataMagic.disableReactiveObject (low-level) to revert a object back to normal,
+*       Added HypeDataMagic.debounceByRequestFrame (helper) to create a function version that is debounced by rAF,
+*       Added HypeDataMagic.createSequence (helper) as a function factory for sequences progress on demand,
+*       Change default on all forceRedraws (Safari-Bugfix) to false, you can enable them if needed for IDE or exports only,
+*       Added HypeDataMagic.setDefault('highlightDataMagic', true); to allow inspecting regions managed by Data Magic,
+*       Added inline syntax for data-magic-key as source:key (this overrides any branch lookups),
+*       Added inline syntax for variables as source:key, add %{} and (sparkles-emoji){} options for variable names,
+*       Refactored observer in IDE portion, added plenty of comments to code
+*       
 */
 if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
@@ -34,7 +47,24 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	var _observer = {};
 	var _hypeDocumentIDE;
 	
-	// defaults can be overriden with setDefault
+	/**
+	 * defaults can be overriden with setDefault
+	 * 
+	 * @property {string} source - the default source of the data
+	 * @property {function} fallbackImage - fallback image if no image is provided (defaults to empty PNG)
+	 * @property {string} handler - default handler if not provided using data-magic-handler
+	 * @property {object} variables - default variables (used instead of custom Data if set)
+	 * @property {object} handlerMixin -  handler mixins
+	 * @property {object} sourceRedirect - the source redirect lookup
+	 * @property {boolean} refreshOnSetData -  trigger refresh on set data
+	 * @property {boolean} refreshOnCustomData - trigger refresh on custom data
+	 * @property {boolean} forceRedrawElement - force redraw elements
+	 * @property {boolean} forceRedrawDocument - force redraw document
+	 * @property {boolean} allowDataFunctions - allow data functions
+	 * @property {boolean} allowVariables - allow variables
+	 * @property {boolean} allowDatasets - allow datasets
+	 * @property {string} resourcesFolderNameForPreview - the resources folder name for previews (is usually autodetected)
+	 */
 	var _default = {
 		source: 'shared',		
 		fallbackImage: function(){
@@ -45,13 +75,23 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		handlerMixin: {},
 		sourceRedirect: {},
 		refreshOnSetData: true,
-		forceRedrawElement: true,
+		refreshOnCustomData: true,
+		forceRedrawElement: false,
+		forceRedrawElementNonIDE: false,
 		forceRedrawDocument: false,
+		forceRedrawDocumentNonIDE: false,
+		highlightDataMagic: true,
 		allowDataFunctions: true,
 		allowVariables: true,
+		allowDatasets: true,
+		allowMagicSets: true,
 		resourcesFolderNameForPreview: '',
 	};
 	
+	/**
+	 * Force redraw of an element
+	 * @param {HTMLElement} element
+	 */
 	var forceRedraw = function(element){
 		var disp = element.style.display;
 		element.style.display = 'none';
@@ -59,15 +99,26 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		element.style.display = disp;
 	};
 
-
+	/*
+	 *	_handler is an object that contains all the handlers for the different types of data.
+	 *	Each handler is an object that contains two functions:
+	 *		DataMagicPrepareForDisplay: called when the data is loaded and the element is about to be displayed
+	 *		DataMagicUnload: called when the data is unloaded and the element is about to be hidden
+	 *	Each function receives three parameters:
+	 *		hypeDocument: the hypeDocument object
+	 *		element: the element that is being displayed
+	 *		event: the event object that contains the data
+	 */
 	var _handler = {
 		'text': {
 			DataMagicPrepareForDisplay: function(hypeDocument, element, event){
 				if (element.innerHTML != event.data && hasNoHypeElementsAsChild(element)) {
 					if (_default['allowVariables']) {
 						event.data = resolveVariablesInString(event.data, Object.assign( 
+							{},
 							_default['variables'] || hypeDocument.customData, 
-							{ resourcesFolderName: hypeDocument.resourcesFolderURL()}
+							{ resourcesFolderName: hypeDocument.resourcesFolderURL()},
+							element && _default['allowDatasets']? {dataset: resolveDatasetVariables(element)} : null,
 						));
 					}
 					element.innerHTML = event.data;
@@ -83,14 +134,22 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 				return event;
 			}
 		},
+		'dataset': {
+			DataMagicPrepareForDisplay: function (hypeDocument, element, event){
+				if (element && _default['allowDatasets']) event.data = resolveVariablesInObject(event.data, {dataset: resolveDatasetVariables(element)});
+				return event;
+			}
+		},
 		'image': {
 			DataMagicPrepareForDisplay: function (hypeDocument, element, event){
 				if (typeof event.data == 'string') event.data = {src: event.data};
 				if (!event.data.src) event.data.src = element.dataset.fallbackImage || _default.fallbackImage();
 				if (_default['allowVariables']) {
 					event.data = resolveVariablesInObject(event.data, Object.assign( 
+						{},
 						_default['variables'] || hypeDocument.customData, 
-						{ resourcesFolderName: hypeDocument.resourcesFolderURL()}
+						{ resourcesFolderName: hypeDocument.resourcesFolderURL()},
+						element && _default['allowDatasets']? {dataset: resolveDatasetVariables(element)} : null,
 					));
 				}
 				element.innerHTML = '';
@@ -108,6 +167,13 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		}
 	}
 
+	/**
+	 * Calls the handler function for the given event. This function is called by the event handler. It calls the handler function for the given event.
+	 *
+	 * @param {HYPE.documents.HYPEDocument} hypeDocument The document object.
+	 * @param {HTMLElement} element The element that triggered the event.
+	 * @param {Object} event The event object.
+	 */
 	function callHandler(hypeDocument, element, event){
 		if (!event.handler) return;
 
@@ -147,18 +213,28 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		}
 	}
 
+	/**
+	 * This function is used to update the magic key of an element.
+	 *
+	 * @param {object} hypeDocument - The hypeDocument object.
+	 * @param {object} element - The element object.
+	 * @param {object} event - The event object.
+	 */
 	function updateMagicKey(hypeDocument, element, event){
 		if (!element.getAttribute('data-magic-key')) return;
 
 		// find the source we are working from and handle special source customData
-		var source = findMagicAttribute(element, 'data-magic-source') || _default['source'];
-		var key = trim(element.getAttribute('data-magic-key'));
+		var keyParts = trim(element.getAttribute('data-magic-key')).split(':');
+		var key =  keyParts[1] ?  keyParts[1] : keyParts[0];
+		var inlineSourceName = keyParts[1] ? keyParts[0].trim() : null;
+		var source = inlineSourceName || findMagicAttribute(element, 'data-magic-source') || _default['source'];
+		
 		var data = (source == 'customData')? hypeDocument.customData : getData(source);
 		
 		// is we have a source proceed
 		if (data){
-			// look if we have a brach an combine it with our key
-			var branchkey = findMagicAttribute(element, 'data-magic-branch');
+			// look if we have a brach an combine it with our key, only look if no inline source was used
+			var branchkey = keyParts[1] ? '' : findMagicAttribute(element, 'data-magic-branch');
 			var branch = branchkey? resolveObjectByKey(data, branchkey) : data;
 			var branchdata = resolveObjectByKey(branch, key);
 			
@@ -213,6 +289,15 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		}
 	}
 
+
+	/**
+	 * This is a description of the unloadMagicKey function.
+	 *
+	 * @param {HypeDocument} hypeDocument - The HypeDocument object.
+	 * @param {HTMLElement} element - The element that triggered the event.
+	 * @param {Event} event - The event object.
+	 * @returns {void}
+	 */
 	function unloadMagicKey(hypeDocument, element, event){
 		// make sure we have an object
 		event = Object.assign({}, event);
@@ -233,10 +318,24 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		})
 	}
 
+	/**
+	 * This function checks if the element has no Hype elements as child.
+	 *
+	 * @param {HTMLElement} element - The element to check.
+	 * @returns {boolean} - True if the element has no Hype elements as child, false otherwise.
+	 */
 	function hasNoHypeElementsAsChild(element){
 		return !element.querySelectorAll('.HYPE_element, .HYPE_element_container').length;
 	}
 
+	/**
+	 * The change observer is a MutationObserver that observes the DOM for changes
+	 * to the data-magic-* attributes. When a change is detected, the change observer will call the appropriate
+	 * functions to update the magic key. This function creates a change observer for the specified Hype document.
+	 *
+	 * @param {HYPE_Document} hypeDocument - The Hype document.
+	 * @param {HTMLElement} baseContainer - The base container.
+	 */
 	function createChangeObserver (hypeDocument, baseContainer){
 		if (_observer[hypeDocument.documentId()]) return;
 
@@ -306,37 +405,74 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		}	
 	}
 
+	/**
+	 * Enable the change observer for the specified Hype document.
+	 *
+	 * @param {HYPE_Document} hypeDocument - The Hype document.
+	 */
 	function enableChangeObserver(hypeDocument){
 		if (!_observer[hypeDocument.documentId()]) return;
 		_observer[hypeDocument.documentId()].enable();
 	}
 
+	/**
+	 * Disable the change observer for the specified Hype document.
+	 *
+	 * @param {HYPE_Document} hypeDocument - The Hype document.
+	 */
 	function disableChangeObserver(hypeDocument){
 		if (!_observer[hypeDocument.documentId()]) return;
 		_observer[hypeDocument.documentId()].disable();
 	}
 
+	/**
+     * Refresh the descendants of the specified element.
+	 *
+	 * @param {HYPE_Document} hypeDocument - The Hype document.
+	 * @param {HTMLElement} element - The element.
+	 * @param {Event} event - The event.
+	 */
 	function refreshDescendants(hypeDocument, element, event){
 		if (!element) return;
 		var elms = element.querySelectorAll('[data-magic-key]');
 		elms.forEach(function(elm){
 			updateMagicKey(hypeDocument, elm, event);
-			if ( _default['forceRedrawElement']==true) forceRedraw(elm);
+			if ( _default['forceRedrawElement'] || (!_isHypeIDE && _default['forceRedrawElementNonIDE'])) forceRedraw(elm);
 		});
 	}
 
+	/**
+	 * Refresh the specified element.
+	 *
+	 * @param {HYPE_Document} hypeDocument - The Hype document.
+	 * @param {HTMLElement} element - The element.
+	 * @param {Event} event - The event.
+	 */
 	function refreshElement(hypeDocument, element, event){
 		if (!element) return;
 		updateMagicKey(hypeDocument, element, event);
-		if ( _default['forceRedrawElement']==true) forceRedraw(element);
+		if ( _default['forceRedrawElement']==true || (!_isHypeIDE && _default['forceRedrawElementNonIDE'])) forceRedraw(element);
 	}
 
+	/**
+	 * Refresh the specified element and its descendants.
+	 *
+	 * @param {HYPE_Document} hypeDocument - The Hype document.
+	 * @param {HTMLElement} element - The element.
+	 * @param {Event} event - The event.
+	 */
 	function refresh(hypeDocument, element, event){
 		if (!element) return;
 		refreshElement(hypeDocument, element, event);
 		refreshDescendants(hypeDocument, element, event);
-		if ( _default['forceRedrawDocument']==true) forceRedraw(element);
+		if ( _default['forceRedrawDocument']==true  || (!_isHypeIDE && _default['forceRedrawDocumentNonIDE'])) forceRedraw(element);
 	}
+	
+	/**
+	 * Debounced version of above (internal usage)
+	 */
+	var refreshDebounced = debounceByRequestFrame(refresh);
+			
 
 	/**
 	 * This function allows to set data
@@ -409,6 +545,13 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		return _default[key];
 	}
 
+
+	/**
+	 * This function removes all the white spaces from the beginning and the end of the string
+	 *
+	 * @param {string} str - The string to be trimmed
+	 * @returns {string} - The trimmed string
+	 */
 	function trim(str){
 		if (typeof str != 'string') return;
 		return str.trim();
@@ -458,7 +601,11 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	/**
 	 * Resolve variables in object using resolveVariablesInString recursively and a variables lookup
 	 *
-	 */  
+	 * @param {Object} obj - The object to resolve variables in
+	 * @param {Object} variables - The variables to use for resolving
+	 * @param {Boolean} noClone - If true, the object will not be cloned before resolving
+	 * @returns {Object} The resolved object
+	 */
 	function resolveVariablesInObject(obj, variables, noClone) {
 		if (typeof obj === 'object') {
 			if (!noClone) obj = cloneObject(obj);
@@ -476,25 +623,32 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	/**
 	 * Resolve variables in string using a variable lookup
 	 *
-	 */  
-	function resolveVariablesInString(str, variables) {
-		if (typeof str === 'string') {
-			var matches = str.match(/\$\{(.*?)\}/g);
-			if (matches) {
-				matches.forEach(function(match) {
-					var variableKey = match.replace(/\$\{|\}|\(\)/g, '');
-					var variableValue = resolveObjectByKey(variables, variableKey);
-					str = str.replace(match, variableValue);
-				});
-			}
-		}
-		return str;
-	}
-
+	 * @param {string} str The string to resolve variables in.
+	 * @param {object} variables The variables to resolve.
+	 * @returns {string} The resolved string.
+	 */
+	 function resolveVariablesInString(str, variables) {
+ 		if (typeof str === 'string') {
+ 			var matches = str.match(/\${.*?}|%{.*?}|✨{.*?}/g);
+ 			if (matches) {
+ 				matches.forEach(function(match) {
+ 					var keyParts = match.replace(/\$\{|\%\{|\✨\{|\}|\(\)/g, '').split(':');
+					var variableKey =  keyParts[1] ?  keyParts[1] : keyParts[0];
+					var sourceData = keyParts[1] ? getData(keyParts[0].trim()) : null;
+ 					var variableValue = resolveObjectByKey(sourceData || variables, variableKey);
+ 					str = str.replace(match, variableValue);
+ 				});
+ 			}
+ 		}
+ 		return str;
+ 	}
+		
 	/**
-	 * clone an object
+	 * @description This function clones an object
 	 *
-	 */  
+	 * @param {object} obj
+	 * @returns {object} copy
+	 */ 
 	function cloneObject(obj) {
 		if (null == obj || "object" != typeof obj) return obj;
 		var copy = obj.constructor();
@@ -516,7 +670,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	function findMagicAttribute(element, attr) {
 		if (!element || !element.id) return null;
 		while (element.parentNode && !element.classList.contains('HYPE_scene')) {
-			if (element.hasAttribute(attr)) {
+			if (element.hasAttribute(attr)) {
 				return element.getAttribute(attr);
 			}
 			element = element.parentNode;
@@ -553,16 +707,239 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		}
 	}
 
+	/**
+	 * Resolves the magicSets attribute of an element.
+	 *
+	 * @param {HTMLElement} element The element to resolve the magicSets attribute for.
+	 * @returns {Object} The resolved dataset.
+	 */
+	function resolveDatasetVariables(element) {
+		var dataset = Object.assign({}, element.dataset);
+		if (_default['allowMagicSets'] && dataset.magicSets) {
+			var entries = dataset.magicSets.split(",");
+			let i = 0;
+			while (i < entries.length) {
+				var entry = entries[i].trim();
+				switch (entry) {
+					case "parent":
+						var parent = element.parentElement.parentElement;
+						if (parent) {
+							assignNew(dataset, parent.dataset);
+						}
+						break;
+						
+					case "parents":
+						var parent = element.parentElement;
+						while (parent && !parent.classList.contains("HYPE_scene")) {
+							assignNew(dataset, parent.dataset);
+							parent = parent.parentElement;
+						}
+						break;
+						
+					default:
+						if (entry.indexOf("closest(") === 0 && entry.indexOf(")") === entry.length - 1) {
+							var content = entry.substring(8, entry.length - 1);
+							var closest = element.closest(content);
+							if (closest) {
+								assignNew(dataset, closest.dataset);
+							}
+						} else {
+							var elements = document.querySelectorAll(entry);
+							elements.forEach(element => {
+								assignNew(dataset, element.dataset);
+							});
+						}
+				}
+				i++;
+			}
+		}
+		return dataset;
+	}
+	
+	/**
+	 * This function only assigns values from source if they are not present in target
+	 *
+	 * @param {Object} target - The target object
+	 * @param {Object} source - The source object
+	 */
+	function assignNew(target, source) {
+		for (var key in source) {
+			if (!target.hasOwnProperty(key)) {
+				target[key] = source[key];
+			}
+		}
+	}
+
+	
+	/**
+	 * Helper to determine if an object is reactive by checking __isReactive.
+	 *
+	 * @param {Object} obj - The object to check.
+	 * @returns {boolean} - True if the object is reactive, false otherwise.
+	 */
+	function isReactive(obj) {
+		return obj.__isReactive;
+	};
+	
+	/**
+	 * This function makes an object reactive and fires a callback on set operations
+	 *
+	 * @param {Object} obj This the object that should be made reactive
+	 * @param {Function} callback This is function that should be called
+	 * @return Returns the object as a proxy
+	 */
+	function enableReactiveObject (obj, callback) {
+		if (isReactive(obj)) return obj;
+		
+		const handler = {
+			get(target, key, receiver) {
+				const result = Reflect.get(target, key, receiver);
+				if (typeof result === 'object') {
+					return enableReactiveObject(result, callback);
+				}
+				return result;
+			},
+			set(target, key, value, receiver) {
+				const result = Reflect.set(target, key, value, receiver);
+				if(key !== '__isReactive') callback(key, value, target, receiver);
+				return result;
+			},
+		};
+		const proxy = new Proxy(obj, handler);
+		Object.defineProperty(proxy, '__isReactive', {
+			value: true,
+			enumerable: false,
+			configurable: false,
+		});
+		return proxy;
+	}
+	
+	/**
+	 * This function makes an object non-reactive
+	 *
+	 * @param {Object} obj This the object that should be made non-reactive
+	 * @return Returns the object as a non-reactive object
+	 */
+	function disableReactiveObject(obj) {
+		if (!isReactive(obj)) return obj;
+	
+		const result = {};
+		for (const key in obj) {
+			if (obj.hasOwnProperty(key)) {
+				const value = obj[key];
+				if (typeof value === 'object') {
+					result[key] = disableReactiveObject(value);
+				} else {
+					if(key !== '__isReactive') result[key] = value;
+				}
+			}
+		}
+		return result;
+	}
+	
+	
+	
+	/**
+	 * This function creates another function that can be used to loop through a set of steps. 
+	 * This could be useful, for example, in creating animations or a set of instructions that need to be followed in order.
+	 *
+	 * @param {Array} arr - The array of steps to be looped through
+	 * @param {number} i - The index to start at
+	 * @param {function} callback - The function to be called on each step
+	 * @param {string} key - The key to use for the object
+	 * @returns {function} - A function that can be used to loop through the steps
+	 */
+	function createSequence(arr, i, callback, key) {
+		i = i || 0;
+		const steps = [];
+		arr.forEach(step => {
+			if (Array.isArray(step)) {
+				for (let j = 0; j < step[0]; j++) {
+					steps.push(step[1]);
+				}
+			} else {
+				steps.push(step);
+			}
+		});
+		
+		return function(n) {
+			n = n == undefined? 0 : n;
+			if (typeof n === "string") i = n = parseInt(n);
+			
+			if (i >= steps.length) i = i % steps.length;
+			if (i < 0) i = steps.length + (i % steps.length);
+			
+			const step = steps[i];
+			i += n;
+			
+			if (typeof step === "function") step = step();
+		
+			switch (typeof callback){
+				case "function":
+					callback(step);
+					break;
+	
+				case "object":
+					if (key) object[key] = step;
+					break;
+			} 
+			return step;
+		};
+	}
+	
+	
+	
+	/**
+	 * Create a debounced function that delays invoking `fn` until after `delay` milliseconds have elapsed since the last time the debounced function was invoked.
+	 *
+	 * @param {function} fn - the function to be debounced
+	 * @param {number} delay - the delay in milliseconds
+	 * @returns {function} - a debounced function
+	 */
+	function debounceByRequestFrame(fn) {
+		return function() {
+			if (fn.timeout) return;
+			var args = arguments;
+			fn.timeout = requestAnimationFrame(function() {
+				fn.apply(this, args);
+				fn.timeout = null;
+			}.bind(this));
+		};
+	}
+
+
+	/**
+	 * HypeDocumentLoad is called when the document is loaded.
+	 *
+	 * @param {HYPE_Document} hypeDocument
+	 * @param {Element} element
+	 * @param {Event} event
+	 */
 	function HypeDocumentLoad (hypeDocument, element, event) {
 		
 		/**
-		 * This function allows to refresh the data in the current scene
-		 *
-		 * @param {HTMLDivElement} element The element (including descendants) to refresh. This defaults to the scene element.
-		 */
+	 	* This function allows to refresh the data in the current scene.
+	 	*
+	 	* This function is useful when you want to refresh the data of the current scene.
+	 	* It will refresh the data of the scene element and all its descendants.
+	 	*
+	 	* If you want to refresh the data of a specific element, use the function hypeDocument.refreshElement.
+	 	* If you want to refresh the data of all descendant of a given element, use the function hypeDocument.refreshDescendants.
+	 	*
+	 	* @param {HTMLDivElement} element The element (including descendants) to refresh. This defaults to the scene element.
+	 	*/
 		hypeDocument.refresh = function(element){
 			refresh(this, element || document.getElementById(this.currentSceneId()));
 		}
+		
+		/**
+		 * This function allows to refresh the data in the current scene.
+		 * This function is debounced by requestAnimationFrame.
+		 *
+		 * @param {HTMLDivElement} element The element (including descendants) to refresh. This defaults to the scene element.
+		 */
+		hypeDocument.refreshDebounced = debounceByRequestFrame(hypeDocument.refresh);
+				
 
 		/**
 		 * This function allows to refresh the data of all descendant of a given element
@@ -572,6 +949,15 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		hypeDocument.refreshDescendants = function(element){
 			refreshDescendants(this, element || document.getElementById(this.currentSceneId()));
 		}
+		
+		/**
+		 * This function allows to refresh the data of all descendant of a given element.
+		 * This function is debounced by requestAnimationFrame.
+		 *
+		 * @param {HTMLDivElement} element The element to start the descendants refresh. This defaults to the scene element.
+		 */
+		hypeDocument.refreshDescendantsDebounced = debounceByRequestFrame(hypeDocument.refreshDescendants);
+				
 
 		/**
 		 * This function allows to refresh a specific element
@@ -581,6 +967,15 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		hypeDocument.refreshElement = function(element){
 			refreshElement(this, element);
 		}
+
+		/**
+		 * This function allows to refresh a specific element.
+		 * This function is debounced by requestAnimationFrame.
+		 *
+		 * @param {HTMLDivElement} element The element to refresh.
+		 */
+		hypeDocument.refreshElementDebounced = debounceByRequestFrame(hypeDocument.refreshElement);
+				
 
 		/**
 		 * This function allows to disable observer based refresh calls when updating a data-magic-* attribute
@@ -599,9 +994,10 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		}
 
 		/**
-		 * This function is a simple helper function that checks if the content provided differs from the content found in element.innHTML and only refreshes if needed
+		 * This function is a simple helper function that checks if the content provided differs from the content found in element.innHTML and only refreshes if needed.
 		 *
-		 * @param {HTMLDivElement} content The content to set in innerHTML if it differs
+		 * @param {HTMLDivElement} element The element to check
+		 * @param {string} content The content to set in innerHTML if it differs
 		 */
 		hypeDocument.setContentIfNecessary = function(element, content){
 			if (element.innerHTML != content) {
@@ -609,30 +1005,86 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			}
 		}
 		
+		/**
+		 * This function enables a refresh when customData is changed (debounce, beta)
+		 *
+		 */
+		hypeDocument.enableReactiveCustomData = function(){
+			hypeDocument.customData = enableReactiveObject(hypeDocument.customData, _default['reactiveCustomDataHandler'] || function(key, value){
+				if (hypeDocument._refreshRequested) return;
+				hypeDocument._refreshRequested = true;
+				requestAnimationFrame(function() {
+					hypeDocument._refreshRequested = false;
+					hypeDocument.refresh();
+				});
+			});
+		}
+		
+		
+		/**
+		 * This function disables reactive customData (beta)
+		 *
+		 */
+		hypeDocument.disableReactiveCustomData = function(){
+			hypeDocument.customData = disableReactiveObject(hypeDocument.customData);
+		}
+		
 		/* 
-		new since 1.3.5: is _default('customData') is set it is used 
+		new since 1.3.5: if _default('customData') is set it is used 
 		to init hypeDocument.customData
 		*/
 		if ( _default['customData']) {
 			hypeDocument.customData = _default['customData'];
 		}
-
+		
+		/*
+		new since 1.3.6: if _default['makeCustomDataReactive'] is set it
+		will trigger hypeDocument.refresh whenever custom data is updated
+		*/
+		if ( _default['refreshOnCustomData']) {
+			hypeDocument.enableReactiveCustomData();
+		}
+		
+		/*
+		Create a change observer for the hypeDocument and element, and enables the change observer.
+		*/
 		if (!_isHypeIDE){
 			createChangeObserver(hypeDocument, element);
 			enableChangeObserver(hypeDocument);
 		}
 	}
-
+	
+	/**
+	 * HypeScenePrepareForDisplay is called when the scene is about to be displayed.
+	 *
+	 * @param {HYPE_Document} hypeDocument
+	 * @param {Element} element
+	 * @param {Event} event
+	 */
 	function HypeScenePrepareForDisplay (hypeDocument, element, event) {
 		disableChangeObserver(hypeDocument);
 		refresh(hypeDocument, element, event);
 	}
 
+	/**
+	 * HypeSceneLoad is called when the scene is loaded.
+	 *
+	 * @param {HYPE_Document} hypeDocument
+	 * @param {Element} element
+	 * @param {Event} event
+	 */
 	function HypeSceneLoad (hypeDocument, element, event) {
 		refresh(hypeDocument, element, event);
 		enableChangeObserver(hypeDocument);
 	}
 	
+	/**
+	 * HypeSceneUnload is called when the scene is unloaded.
+	 *
+	 * @param {HYPE_Document} hypeDocument
+	 * @param {Element} element
+	 * @param {Event} event
+	 */
 	function HypeSceneUnload (hypeDocument, element, event) {
 		disableChangeObserver(hypeDocument);
 	}
@@ -646,8 +1098,15 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	
 	/* run in IDE */
 	if (_isHypeIDE){
-
-		/* setup fake hypeDocument for IDE */
+		
+		/*
+		The above code sets up the HypeDocumentIDE variable to be used in the scene editor.
+		This will allow the scene editor to use some of the functions (from the original hypeDocument)
+		that are not available in the scene editor.
+		
+		One such function is the "resourcesFolderURL()" function. This is useful for accessing resources (images, videos, etc.) that
+		are contained in a folder in the scene editor. It can also be used for accessing custom functions that are not available in the scene editor.
+		*/
 		_hypeDocumentIDE = new Proxy({ 
 			getElementProperty: function(element, property){
 				return element.style.getPropertyValue(property) || null;
@@ -671,7 +1130,11 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			},
 		});
 
-		/* unload all handler that have a unload */
+		/* 
+		This code resets the entire document. It first unloads all handlers that have unload functions
+		then reloads the entire document. The unload functions are called before the document is reloaded
+		with its original handlers.
+		*/
 		var temp = _handler;
 		_handler= {};
 		for (var key in temp) {
@@ -681,11 +1144,27 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		_handler = temp;
 				
 		/* fire fake document load event for IDE */
-		if (_debug) console.log(_extensionName+': HypeDocumentLoad (extending _hypeDocumentIDE)');
-		
 		HypeDocumentLoad(_hypeDocumentIDE, document.documentElement);
 
-		/* setup listener for edits on element content(dblClick)/innerHTML(pen) using data magic */
+		/*
+		Observe for user interactions with Magic Data elements.
+		
+		1) Observes for changes to the contenteditable attribute
+		2) When this happens, we refresh the preview
+				// If the parent node has a magic key, we refresh the preview, or
+				// If the parent node contains a magic key, we refresh the preview
+		3) If the contenteditable attribute is set to true (ie we're inside the element), we
+				// Set the magic-edit attribute to preview
+				// Set a timeout so that the innerHTML of the element contains a placeholder comment
+		4) If the contenteditable attribute is set to false (ie we're out of the element), we
+				// Remove the magic-edit attribute from the parent node
+				// Refresh the preview again
+		
+		We can't just refresh the preview when the contenteditable attribute is set to true, because the
+		innerHTML is not yet set to the magic key. So we set a delay using setTimeout to wait for the innerHTML
+		to be updated before we refresh the preview. We also need to remove the magic-edit attribute so that
+		we don't end up in an infinite loop.
+		*/
 		var refreshObserver = new MutationObserver(function(mutations) {
 			mutations.forEach(function (mutation) {
 				var element = mutation.target;
@@ -759,48 +1238,48 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			attributeFilter:['contenteditable'],
 			subtree: true,
 		});
-
-		/* handle updates in page like duplication and copy & paste */
-		var _debounceInterval;
-		var childListObserver = new MutationObserver(function(mutations) {
-			if (_debounceInterval) return;
-			if (mutations.length!=2) return;
-			if (mutations[0].target.id != 'HypeMainContentDiv') return;
-			_debounceInterval = setTimeout(function(){
-				if (_debug) console.log(_extensionName+': child list change (copy & paste or duplication)');
-				_debounceInterval = null;
-				refresh(_hypeDocumentIDE, document.documentElement);
-			},1);
-		})
-
-		childListObserver.observe(document.documentElement, { 
-			childList: true,
-			subtree: true,
-		});
-
-		/* handle updates on page while in same scene */
-		_updates = {};
-		var updateObserver = new MutationObserver(function(mutations) {
-			mutations.forEach(function (mutation) {
-				var currentValue =  mutation.target.getAttribute(mutation.attributeName);
-				if (currentValue && mutation.oldValue == currentValue && currentValue.indexOf('data-magic')!=-1){
-					var id = mutation.target.getAttribute('hypeobjectid');
-					if (_updates[id]) return;
-					_updates[id] = setTimeout(function(){
-						if (_debug) console.log(_extensionName+': rebuild after Hype refresh', mutation.target.id);
-						refreshElement(_hypeDocumentIDE, mutation.target);
-						delete(_updates[id]);
-					},1);
+		
+		/*
+		
+		Here we are using a feature called MutationObserver. This feature allows us to detect changes that have been made to the DOM (HTML). The MutationObserver has a callback function (the function inside the parentheses) that is called whenever there is a change to the DOM. The callback has an argument called mutations.
+		
+		The mutations object contains all of the changes that have been made to the DOM. We can loop through the mutations object and check what kind of changes have been made. In our case, we're interested in two types of changes:
+		
+		1) Changes to the attributes of an element. For example, if we change the data-hype-id attribute of an element, we want to know about it.
+		2) Changes to the innerHTML of the HypeMainContentDiv. This is how we know when the Hype has refreshed and changes the page.
+		
+		Once we've detected that a change has been made, we need to update the magic-edit attributes on all of the elements in the document. We do this by calling the refresh Debounced function (which we defined earlier). This function will loop through all of the elements in the document and update the magic-edit attributes.
+		
+		*/
+		var observer = new MutationObserver(function(mutations) {
+			if (refreshDebounced.timeout) return;
+			var attrUpdate = false;
+			var pageUpdate = mutations.length == 2 && mutations[0].target.id == 'HypeMainContentDiv';
+			if (!pageUpdate) {
+				var i = 0;
+				while (i < mutations.length && !attrUpdate) {
+					if (mutations[i].type === 'attributes' && mutations[i].attributeName.match(/^data\-/)) {
+						attrUpdate = true;
+					} else {
+						i++;
+					}
 				}
-			});
-		})
-
-		updateObserver.observe(document.documentElement, { 
-			attributes: true,
-			attributeOldValue: true,
-			attributeFilter:['hypeattributelastkeysplist'],
-			subtree: true,
+			}
+			if (attrUpdate || pageUpdate) {
+				document.querySelectorAll('*[magic-edit]').forEach(function (el) {
+					el.removeAttribute('magic-edit');
+				});
+				refreshDebounced(_hypeDocumentIDE, document.documentElement);
+			}
 		});
+		
+		observer.observe(document.documentElement, {
+			characterData: false,
+			attributes: true,
+			childList: true,
+			subtree: true
+		});
+
 		
 		/* setup after dom has loaded first time */
 		window.addEventListener("DOMContentLoaded", function(event) {
@@ -826,47 +1305,45 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 				}	
 			});
 
-			/* monitor visibility of scene in Hype IDE - Thanks for the tip @jonathan */
-			document.addEventListener("visibilitychange", function(event) {
-				if (document.hidden) {
-					if (_debug) console.log(_extensionName+': Page hidden');
-				} else  {
-					if (_debug) console.log(_extensionName+': Page visible');
-					refresh(_hypeDocumentIDE, document.documentElement);
-				}
-			}, false);
-
-			/* initial setup with slight delay */
-			setTimeout(function(){
-				if (_debug) console.log(_extensionName+': initial refresh');
-				refresh(_hypeDocumentIDE, document.documentElement);
-				if (_debug) console.log(_extensionName+': changeObserver');
-				createChangeObserver(_hypeDocumentIDE, document.documentElement);
-				enableChangeObserver(_hypeDocumentIDE);
-			},1);
-
-			/* dynamic styles for IDE preview and deselect */
+			/* 
+			This code inserts two CSS rules into the first stylesheet on the page. The first CSS rule is applied to all elements with the attribute [contenteditable="true"] that also have a descendant element with the attribute [data-magic-key]. This CSS rule makes all elements with those attributes have an opacity of 0.5.
+			
+			The second CSS rule is applied to all elements with the attribute [data-magic-key]:before. This CSS rule is used to style the pseudo-element that is generated by the [data-magic-key] attribute.
+			
+			The third rule  is applied to all elements with the attribute [data-magic-key]:after. This CSS rule is used to style a pseudo-element that is generated by the [data-magic-key] attribute and adds a 1px border around the element.
+			*/
+			var highlightDataMagic = _default['highlightDataMagic']? '[data-magic-key]::before' : '[magic-edit]::before';
 			document.styleSheets[0].insertRule('[contenteditable="true"] [data-magic-key], [magic-edit="preview"] [contenteditable="true"]  {opacity:0.5}',0);
-			document.styleSheets[0].insertRule('[magic-edit]::before { position:absolute; opacity:1; content: "Data Magic"; text-align: center; font-size:7px; padding:3px; height: 8px; width: 40px; color:#fff; left: -2px; top: -16px; border-radius: 1px; background-color: #75A4EA;}',0);
+			
+			document.styleSheets[0].insertRule(highlightDataMagic+' {position: absolute; content: "Data Magic";  z-index: 10; top: -16px; left: 0px; height: 15px; display: flex; align-items: center; justify-content: center; font: 8px Arial; color: white; background: #75A4EA; border-top-right-radius: 0.2rem; border-top-left-radius: 0.2rem; padding: 0.5rem; box-sizing: border-box;}',0);
+			
+			if (_default['highlightDataMagic']) document.styleSheets[0].insertRule('[data-magic-key]:after {content: " "; position: absolute; z-index: -1; top: 0px; left: 0px; right: 0px; bottom: 0px; border: 1px solid #75A4EA;}',0);
+
 			window.getSelection().removeAllRanges();
 		});
 	}
-
-
-	/**
-	 * @typedef {Object} HypeDataMagic
-	 * @property {String} version Version of the extension
-	 * @property {Function} setData This function allows to set data by passing in an object. An optional data source name can also be used (name defaults to "shared")
-	 * @property {Function} getData This function allows to get the data for a specific data source. If no data source name is supplied it defaults to "shared"
-	 * @property {Function} refresh This function allows force a refresh on all Hype document from the window level. You can also pass in a specific hypeDocument object to limit the scope.
-	 * @property {Function} setDefault This function allows to set a default value (see function description)
-	 * @property {Function} getDefault This function allows to get a default value
-	 * @property {Function} addDataHandler This function allows to define your own data handler either as an object with functions or a single function
-	 * @property {Function} resolveObjectByKey This low level function returns resolves an object based on a string key notation similar to actual code and returns the value or branch if successful. You can also use an array of strings as the key
-	 * @property {Function} resolveKeyToArray This low level function returns an array resolved based on a string key notation similar to actual code. Given an array as key it works recursive while resolving the input
-	 */
+	 
+	 /**
+	  * @typedef {Object} HypeDataMagic
+	  * @property {String} version Version of the extension
+	  * @property {Function} setData This function allows to set data by passing in an object. An optional data source name can also be used (name defaults to "shared")
+	  * @property {Function} getData This function allows to get the data for a specific data source. If no data source name is supplied it defaults to "shared"
+	  * @property {Function} refresh This function allows force a refresh on all Hype document from the window level. You can also pass in a specific hypeDocument object to limit the scope.
+	  * @property {Function} setDefault This function allows to set a default value (see function description)
+	  * @property {Function} getDefault This function allows to get a default value
+	  * @property {Function} addDataHandler This function allows to define your own data handler either as an object with functions or a single function
+	  * @property {Function} resolveObjectByKey This low level function returns resolves an object based on a string key notation similar to actual code and returns the value or branch if successful. You can also use an array of strings as the key
+	  * @property {Function} resolveKeyToArray This low level function returns an array resolved based on a string key notation similar to actual code. Given an array as key it works recursive while resolving the input
+	  * @property {Function} resolveVariablesInString This low level function returns a string with all variables resolved. It can also be used to resolve variables in a string.
+	  * @property {Function} resolveVariablesInObject This low level function returns an object with all variables resolved. It can also be used to resolve variables in an object.
+	  * @property {Function} cloneObject This low level function returns a clone of an object.
+	  * @property {Function} enableReactiveObject This low level function enables reactive object.
+	  * @property {Function} disableReactiveObject This low level function disables reactive object.
+	  * @property {Function} createSequence This helper function factory creates a function that returns the next item from a sequence on each call.
+	  * @property {Function} debounceByRequestFrame This helper function returns a debounced function.
+	  */
 	var HypeDataMagic = {
-		version: '1.3.5',
+		version: '1.3.6',
 		'setData': setData,
 		'getData': getData,
 		'refresh': refreshFromWindowLevel,
@@ -879,6 +1356,11 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		'resolveVariablesInString': resolveVariablesInString,
 		'resolveVariablesInObject': resolveVariablesInObject,
 		'cloneObject': cloneObject,
+		'enableReactiveObject': enableReactiveObject,
+		'disableReactiveObject': disableReactiveObject,
+		/* helper */
+		createSequence: createSequence,
+		debounceByRequestFrame: debounceByRequestFrame,
 	};
 
 	/** 
