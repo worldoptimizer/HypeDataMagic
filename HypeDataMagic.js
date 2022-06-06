@@ -1,5 +1,5 @@
 /*!
-Hype DataMagic 1.3.6
+Hype DataMagic 1.3.7
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -33,20 +33,21 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 *       Added inline syntax for data-magic-key as source:key (this overrides any branch lookups),
 *       Added inline syntax for variables as source:key, add %{} and (sparkles-emoji){} options for variable names,
 *       Refactored observer in IDE portion, added plenty of comments to code
+* 1.3.7 Reverted the observer in IDE portion (only affects preview in IDE, fixing quirks)
 *       
 */
-if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
+if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 
 	/* @const */
 	const _debug = false;
 	/* @const */
 	const _isHypeIDE = window.location.href.indexOf("/Hype/Scratch/HypeScratch.") != -1;
-	
+
 	var _extensionName = 'Hype Data Magic';
 	var _data = {};
 	var _observer = {};
 	var _hypeDocumentIDE;
-	
+
 	/**
 	 * defaults can be overriden with setDefault
 	 * 
@@ -66,11 +67,11 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @property {string} resourcesFolderNameForPreview - the resources folder name for previews (is usually autodetected)
 	 */
 	var _default = {
-		source: 'shared',		
-		fallbackImage: function(){
+		source: 'shared',
+		fallbackImage: function() {
 			return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 		},
-		handler:'text',
+		handler: 'text',
 		variables: null,
 		handlerMixin: {},
 		sourceRedirect: {},
@@ -87,15 +88,15 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		allowMagicSets: true,
 		resourcesFolderNameForPreview: '',
 	};
-	
+
 	/**
 	 * Force redraw of an element
 	 * @param {HTMLElement} element
 	 */
-	var forceRedraw = function(element){
+	var forceRedraw = function(element) {
 		var disp = element.style.display;
 		element.style.display = 'none';
-		void 0!=element.offsetHeight;
+		void 0 != element.offsetHeight;
 		element.style.display = disp;
 	};
 
@@ -111,57 +112,53 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 */
 	var _handler = {
 		'text': {
-			DataMagicPrepareForDisplay: function(hypeDocument, element, event){
+			DataMagicPrepareForDisplay: function(hypeDocument, element, event) {
 				if (element.innerHTML != event.data && hasNoHypeElementsAsChild(element)) {
 					if (_default['allowVariables']) {
-						event.data = resolveVariablesInString(event.data, Object.assign( 
-							{},
-							_default['variables'] || hypeDocument.customData, 
-							{ resourcesFolderName: hypeDocument.resourcesFolderURL()},
-							element && _default['allowDatasets']? {dataset: resolveDatasetVariables(element)} : null,
+						event.data = resolveVariablesInString(event.data, Object.assign({},
+							_default['variables'] || hypeDocument.customData, { resourcesFolderName: hypeDocument.resourcesFolderURL() },
+							element && _default['allowDatasets'] ? { dataset: resolveDatasetVariables(element) } : null,
 						));
 					}
 					element.innerHTML = event.data;
 				}
 			},
-			DataMagicUnload: function(hypeDocument, element, event){
+			DataMagicUnload: function(hypeDocument, element, event) {
 				if (hasNoHypeElementsAsChild(element)) element.innerHTML = '';
 			}
 		},
 		'variables': {
-			DataMagicPrepareForDisplay: function (hypeDocument, element, event){
+			DataMagicPrepareForDisplay: function(hypeDocument, element, event) {
 				if (_default['allowVariables']) event.data = resolveVariablesInString(event.data, _default['variables'] || hypeDocument.customData);
 				return event;
 			}
 		},
 		'dataset': {
-			DataMagicPrepareForDisplay: function (hypeDocument, element, event){
-				if (element && _default['allowDatasets']) event.data = resolveVariablesInObject(event.data, {dataset: resolveDatasetVariables(element)});
+			DataMagicPrepareForDisplay: function(hypeDocument, element, event) {
+				if (element && _default['allowDatasets']) event.data = resolveVariablesInObject(event.data, { dataset: resolveDatasetVariables(element) });
 				return event;
 			}
 		},
 		'image': {
-			DataMagicPrepareForDisplay: function (hypeDocument, element, event){
-				if (typeof event.data == 'string') event.data = {src: event.data};
+			DataMagicPrepareForDisplay: function(hypeDocument, element, event) {
+				if (typeof event.data == 'string') event.data = { src: event.data };
 				if (!event.data.src) event.data.src = element.dataset.fallbackImage || _default.fallbackImage();
 				if (_default['allowVariables']) {
-					event.data = resolveVariablesInObject(event.data, Object.assign( 
-						{},
-						_default['variables'] || hypeDocument.customData, 
-						{ resourcesFolderName: hypeDocument.resourcesFolderURL()},
-						element && _default['allowDatasets']? {dataset: resolveDatasetVariables(element)} : null,
+					event.data = resolveVariablesInObject(event.data, Object.assign({},
+						_default['variables'] || hypeDocument.customData, { resourcesFolderName: hypeDocument.resourcesFolderURL() },
+						element && _default['allowDatasets'] ? { dataset: resolveDatasetVariables(element) } : null,
 					));
 				}
 				element.innerHTML = '';
-				if (hypeDocument.getElementProperty(element, 'background-image')!=event.data.src) {
+				if (hypeDocument.getElementProperty(element, 'background-image') != event.data.src) {
 					element.style.backgroundRepeat = 'no-repeat';
 					element.style.backgroundPosition = event.data.backgroundPosition || element.dataset.backgroundPosition || 'center center';
 					element.style.backgroundSize = event.data.backgroundSize || element.dataset.backgroundSize || 'contain';
 					hypeDocument.setElementProperty(element, 'background-image', event.data.src);
 				}
 			},
-			DataMagicUnload: function(hypeDocument, element, event){
-				hypeDocument.setElementProperty( element, 'background-image','');
+			DataMagicUnload: function(hypeDocument, element, event) {
+				hypeDocument.setElementProperty(element, 'background-image', '');
 				element.style.backgroundRepeat = element.style.backgroundPosition = element.style.backgroundRepeat = '';
 			}
 		}
@@ -174,18 +171,18 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {HTMLElement} element The element that triggered the event.
 	 * @param {Object} event The event object.
 	 */
-	function callHandler(hypeDocument, element, event){
+	function callHandler(hypeDocument, element, event) {
 		if (!event.handler) return;
 
-		if (event.handler.slice(-2)=='()'){
-			if (!_isHypeIDE && hypeDocument.functions){
+		if (event.handler.slice(-2) == '()') {
+			if (!_isHypeIDE && hypeDocument.functions) {
 				try {
-					returnFromHandler = hypeDocument.functions()[event.handler.slice(0,-2)](hypeDocument, element, event);
-				} catch (e){
-					console.log('There was an error in your handler "'+event.handler+'": ',e);
+					returnFromHandler = hypeDocument.functions()[event.handler.slice(0, -2)](hypeDocument, element, event);
+				} catch (e) {
+					console.log('There was an error in your handler "' + event.handler + '": ', e);
 				}
 				return returnFromHandler;
-			} else{
+			} else {
 				return;
 			}
 		}
@@ -196,17 +193,17 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			if (typeof _handler[event.handler][event.type] == 'function') {
 				try {
 					returnFromHandler = _handler[event.handler][event.type](hypeDocument, element, event);
-				} catch (e){
-					console.log('There was an error in your handler "'+event.handler+'": ',e);
+				} catch (e) {
+					console.log('There was an error in your handler "' + event.handler + '": ', e);
 				}
 				return returnFromHandler;
 			}
 			/* fallback on DataMagicPrepareForDisplay for IDE if DataMagicPreviewUpdate is not defined */
-			if (_isHypeIDE && typeof _handler[event.handler]['DataMagicPrepareForDisplay'] == 'function'){
+			if (_isHypeIDE && typeof _handler[event.handler]['DataMagicPrepareForDisplay'] == 'function') {
 				try {
 					returnFromHandler = _handler[event.handler]['DataMagicPrepareForDisplay'](hypeDocument, element, event);
-				} catch (e){
-					console.log('There was an error in your handler "'+event.handler+'": ',e);
+				} catch (e) {
+					console.log('There was an error in your handler "' + event.handler + '": ', e);
 				}
 				return returnFromHandler;
 			}
@@ -220,27 +217,27 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {object} element - The element object.
 	 * @param {object} event - The event object.
 	 */
-	function updateMagicKey(hypeDocument, element, event){
+	function updateMagicKey(hypeDocument, element, event) {
 		if (!element.getAttribute('data-magic-key')) return;
 
 		// find the source we are working from and handle special source customData
 		var keyParts = trim(element.getAttribute('data-magic-key')).split(':');
-		var key =  keyParts[1] ?  keyParts[1] : keyParts[0];
+		var key = keyParts[1] ? keyParts[1] : keyParts[0];
 		var inlineSourceName = keyParts[1] ? keyParts[0].trim() : null;
 		var source = inlineSourceName || findMagicAttribute(element, 'data-magic-source') || _default['source'];
-		
-		var data = (source == 'customData')? hypeDocument.customData : getData(source);
-		
+
+		var data = (source == 'customData') ? hypeDocument.customData : getData(source);
+
 		// is we have a source proceed
-		if (data){
+		if (data) {
 			// look if we have a brach an combine it with our key, only look if no inline source was used
 			var branchkey = keyParts[1] ? '' : findMagicAttribute(element, 'data-magic-branch');
-			var branch = branchkey? resolveObjectByKey(data, branchkey) : data;
+			var branch = branchkey ? resolveObjectByKey(data, branchkey) : data;
 			var branchdata = resolveObjectByKey(branch, key);
-			
-			if (branchdata!=null) {
+
+			if (branchdata != null) {
 				// check if we have a object as data source
-				if (typeof (branchdata) != 'object' && typeof (branchdata) != 'function') {					
+				if (typeof(branchdata) != 'object' && typeof(branchdata) != 'function') {
 					var prefix = element.getAttribute('data-magic-prefix') || '';
 					var append = element.getAttribute('data-magic-append') || '';
 					if (prefix || append) {
@@ -250,39 +247,37 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
 				// construct our event object by creating a new one
 				event = Object.assign({}, event, {
-					'data': branchdata, 
-					'source': source, 
+					'data': branchdata,
+					'source': source,
 					'key': key,
 				});
-				
+
 				// define types of events to be fired
 				var types;
-				if (event.type){
+				if (event.type) {
 					// reuse Hype events as our own by renaming
 					types = event.type.replace('HypeScene', 'DataMagic').split();
 				} else {
 					// create event if not given (direct refresh etc.)
-					types = _isHypeIDE? ['DataMagicPreviewUpdate']:['DataMagicPrepareForDisplay','DataMagicLoad'];
+					types = _isHypeIDE ? ['DataMagicPreviewUpdate'] : ['DataMagicPrepareForDisplay', 'DataMagicLoad'];
 				}
-				
+
 				// extract handler string as array and loop over it
-				var handlers = (element.getAttribute('data-magic-handler') ||  _default['handler']).split(',');
-				
+				var handlers = (element.getAttribute('data-magic-handler') || _default['handler']).split(',');
+
 				// loop over types array
-				types.forEach(function(type){
+				types.forEach(function(type) {
 					// loop over handler array
 					// allow returns from handlers to be mixed in to the next item in the call stack
 					var returnFromHandler;
-					handlers.forEach(function(handler){
-						returnFromHandler = callHandler(hypeDocument, element, Object.assign(
-							{}, event, returnFromHandler, {
-								type: type, 
-								handler: handler.trim()
-							}
-						));
+					handlers.forEach(function(handler) {
+						returnFromHandler = callHandler(hypeDocument, element, Object.assign({}, event, returnFromHandler, {
+							type: type,
+							handler: handler.trim()
+						}));
 					})
 				})
-				
+
 			} else {
 				unloadMagicKey(hypeDocument, element);
 			}
@@ -298,23 +293,21 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {Event} event - The event object.
 	 * @returns {void}
 	 */
-	function unloadMagicKey(hypeDocument, element, event){
+	function unloadMagicKey(hypeDocument, element, event) {
 		// make sure we have an object
 		event = Object.assign({}, event);
 
 		// extract handler string as array
-		handlers = (event.oldHandler || element.getAttribute('data-magic-handler')  ||  _default['handler']).split(',');
+		handlers = (event.oldHandler || element.getAttribute('data-magic-handler') || _default['handler']).split(',');
 
 		// loop over handler array
 		// allow returns from handlers to be mixed in to the next item in the call stack
 		var returnFromHandler;
-		handlers.forEach(function(handler){
-			returnFromHandler = callHandler(hypeDocument, element, Object.assign(
-				{}, event, returnFromHandler, {
-					type: 'DataMagicUnload', 
-					handler: handler.trim()
-				}
-			));
+		handlers.forEach(function(handler) {
+			returnFromHandler = callHandler(hypeDocument, element, Object.assign({}, event, returnFromHandler, {
+				type: 'DataMagicUnload',
+				handler: handler.trim()
+			}));
 		})
 	}
 
@@ -324,7 +317,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {HTMLElement} element - The element to check.
 	 * @returns {boolean} - True if the element has no Hype elements as child, false otherwise.
 	 */
-	function hasNoHypeElementsAsChild(element){
+	function hasNoHypeElementsAsChild(element) {
 		return !element.querySelectorAll('.HYPE_element, .HYPE_element_container').length;
 	}
 
@@ -336,22 +329,22 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {HYPE_Document} hypeDocument - The Hype document.
 	 * @param {HTMLElement} baseContainer - The base container.
 	 */
-	function createChangeObserver (hypeDocument, baseContainer){
+	function createChangeObserver(hypeDocument, baseContainer) {
 		if (_observer[hypeDocument.documentId()]) return;
 
 		_observer[hypeDocument.documentId()] = {
 
 			changeObserver: new MutationObserver(function(mutations) {
-				mutations.forEach(function (mutation) {
+				mutations.forEach(function(mutation) {
 					if (mutation.type != 'attributes') return;
-					
+
 					var element = mutation.target;
 					var attributeName = mutation.attributeName;
 					var currentValue = trim(element.getAttribute(attributeName));
 					var oldValue = mutation.oldValue;
-					
+
 					if (currentValue == oldValue) return;
-					
+
 					switch (attributeName) {
 						case 'data-magic-key':
 							if (currentValue) {
@@ -368,7 +361,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 							break;
 
 						case 'data-magic-handler':
-							unloadMagicKey(hypeDocument, element, {oldHandler: oldValue});
+							unloadMagicKey(hypeDocument, element, { oldHandler: oldValue });
 							refresh(hypeDocument, element);
 							break;
 
@@ -376,7 +369,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 						case 'data-magic-append':
 							refresh(hypeDocument, element);
 							break;
-						
+
 					}
 				});
 			}),
@@ -385,24 +378,24 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 				subtree: true,
 				attributes: true,
 				attributeFilter: [
-					'data-magic-key', 
-					'data-magic-source', 
-					'data-magic-branch', 
-					'data-magic-handler', 
+					'data-magic-key',
+					'data-magic-source',
+					'data-magic-branch',
+					'data-magic-handler',
 					'data-magic-prefix',
 					'data-magic-append'
 				],
 				attributeOldValue: true
 			},
 
-			enable: function(){
+			enable: function() {
 				this.changeObserver.observe(baseContainer, this.options);
 			},
 
-			disable: function(){
+			disable: function() {
 				this.changeObserver.disconnect();
 			}
-		}	
+		}
 	}
 
 	/**
@@ -410,7 +403,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 *
 	 * @param {HYPE_Document} hypeDocument - The Hype document.
 	 */
-	function enableChangeObserver(hypeDocument){
+	function enableChangeObserver(hypeDocument) {
 		if (!_observer[hypeDocument.documentId()]) return;
 		_observer[hypeDocument.documentId()].enable();
 	}
@@ -420,24 +413,24 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 *
 	 * @param {HYPE_Document} hypeDocument - The Hype document.
 	 */
-	function disableChangeObserver(hypeDocument){
+	function disableChangeObserver(hypeDocument) {
 		if (!_observer[hypeDocument.documentId()]) return;
 		_observer[hypeDocument.documentId()].disable();
 	}
 
 	/**
-     * Refresh the descendants of the specified element.
+	 * Refresh the descendants of the specified element.
 	 *
 	 * @param {HYPE_Document} hypeDocument - The Hype document.
 	 * @param {HTMLElement} element - The element.
 	 * @param {Event} event - The event.
 	 */
-	function refreshDescendants(hypeDocument, element, event){
+	function refreshDescendants(hypeDocument, element, event) {
 		if (!element) return;
 		var elms = element.querySelectorAll('[data-magic-key]');
-		elms.forEach(function(elm){
+		elms.forEach(function(elm) {
 			updateMagicKey(hypeDocument, elm, event);
-			if ( _default['forceRedrawElement'] || (!_isHypeIDE && _default['forceRedrawElementNonIDE'])) forceRedraw(elm);
+			if (_default['forceRedrawElement'] || (!_isHypeIDE && _default['forceRedrawElementNonIDE'])) forceRedraw(elm);
 		});
 	}
 
@@ -448,10 +441,10 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {HTMLElement} element - The element.
 	 * @param {Event} event - The event.
 	 */
-	function refreshElement(hypeDocument, element, event){
+	function refreshElement(hypeDocument, element, event) {
 		if (!element) return;
 		updateMagicKey(hypeDocument, element, event);
-		if ( _default['forceRedrawElement']==true || (!_isHypeIDE && _default['forceRedrawElementNonIDE'])) forceRedraw(element);
+		if (_default['forceRedrawElement'] == true || (!_isHypeIDE && _default['forceRedrawElementNonIDE'])) forceRedraw(element);
 	}
 
 	/**
@@ -461,18 +454,18 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {HTMLElement} element - The element.
 	 * @param {Event} event - The event.
 	 */
-	function refresh(hypeDocument, element, event){
+	function refresh(hypeDocument, element, event) {
 		if (!element) return;
 		refreshElement(hypeDocument, element, event);
 		refreshDescendants(hypeDocument, element, event);
-		if ( _default['forceRedrawDocument']==true  || (!_isHypeIDE && _default['forceRedrawDocumentNonIDE'])) forceRedraw(element);
+		if (_default['forceRedrawDocument'] == true || (!_isHypeIDE && _default['forceRedrawDocumentNonIDE'])) forceRedraw(element);
 	}
-	
+
 	/**
 	 * Debounced version of above (internal usage)
 	 */
 	var refreshDebounced = debounceByRequestFrame(refresh);
-			
+
 
 	/**
 	 * This function allows to set data
@@ -480,10 +473,10 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {Object} data This parameter needs to be an object but it can hold nested values of any type. To use JSON data parse the data before you set it.
 	 * @param {String} source The source is a optional name to store the data. It defaults to the string "shared".
 	 */
-	function setData(data, source){
+	function setData(data, source) {
 		source = source || _default['source'];
 		_data[source] = data;
-		if ( _default['refreshOnSetData']==true) refreshFromWindowLevel();
+		if (_default['refreshOnSetData'] == true) refreshFromWindowLevel();
 	}
 
 	/**
@@ -491,18 +484,18 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 *
 	 * @param {Object} hypeDocument This parameter is optional and should be a hypeDocument object to refresh. If no paramter is provided it will refresh all documents found under window.HYPE.documents
 	 */
-	function refreshFromWindowLevel(hypeDocument){
+	function refreshFromWindowLevel(hypeDocument) {
 		//refresh explicit document
-		if (hypeDocument && hypeDocument.hasOwnProperty('refresh')){
+		if (hypeDocument && hypeDocument.hasOwnProperty('refresh')) {
 			hypeDocument.refresh();
-		
-		//refresh all documents
-		} else if (window.hasOwnProperty('HYPE')){
-			Object.values(window.HYPE.documents).forEach(function(hypeDocument){
+
+			//refresh all documents
+		} else if (window.hasOwnProperty('HYPE')) {
+			Object.values(window.HYPE.documents).forEach(function(hypeDocument) {
 				hypeDocument.refresh();
 			});
 		}
-	}	
+	}
 
 	/**
 	 * This function allows to get data
@@ -511,7 +504,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {String} key This (optional) key resolves the data given a key
 	 * @return Returns the object Hype Data Magic currently has stored under the given source name.
 	 */
-	function getData(source, key){
+	function getData(source, key) {
 		if (_default['sourceRedirect'][source]) return _data[_default['sourceRedirect'][source]] || null;
 		if (!source) source = _default['source'];
 		var data = _data[source] || null;
@@ -531,7 +524,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {String} key This is the key to override
 	 * @param {String|Function|Object} value This is the value to set for the key
 	 */
-	function setDefault(key, value){
+	function setDefault(key, value) {
 		_default[key] = value;
 	}
 
@@ -541,7 +534,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {String} key This the key of the default.
 	 * @return Returns the current value for a default with a certain key.
 	 */
-	function getDefault(key){
+	function getDefault(key) {
 		return _default[key];
 	}
 
@@ -552,7 +545,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {string} str - The string to be trimmed
 	 * @returns {string} - The trimmed string
 	 */
-	function trim(str){
+	function trim(str) {
 		if (typeof str != 'string') return;
 		return str.trim();
 	}
@@ -564,13 +557,13 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {String} key This the key to resolve the object by in string form.
 	 * @return Returns the current value for a default with a certain key.
 	 */
-	function resolveKeyToArray(key){
-		if(Array.isArray(key)) return key.reduce(function(a,b){
+	function resolveKeyToArray(key) {
+		if (Array.isArray(key)) return key.reduce(function(a, b) {
 			return a.concat(resolveKeyToArray(b));
-		},[]);
+		}, []);
 		if (typeof key != 'string') return;
-		key = key.replace(/\[(\d+)\]/g, function(match, key){
-			return '.'+parseInt(key);
+		key = key.replace(/\[(\d+)\]/g, function(match, key) {
+			return '.' + parseInt(key);
 		});
 		key = key.replace(/^\./, '');
 		return key.split('.');
@@ -588,7 +581,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		var keyParts = resolveKeyToArray(key);
 		var objValue = obj;
 		var i = 0;
-		while (objValue!==undefined && i < keyParts.length) {
+		while (objValue !== undefined && i < keyParts.length) {
 			objValue = objValue[keyParts[i]];
 			if (_default['allowDataFunctions'] && typeof objValue === 'function') {
 				objValue = objValue();
@@ -597,7 +590,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		}
 		return objValue;
 	}
-	
+
 	/**
 	 * Resolve variables in object using resolveVariablesInString recursively and a variables lookup
 	 *
@@ -619,7 +612,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		}
 		return obj;
 	}
-	
+
 	/**
 	 * Resolve variables in string using a variable lookup
 	 *
@@ -627,28 +620,28 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {object} variables The variables to resolve.
 	 * @returns {string} The resolved string.
 	 */
-	 function resolveVariablesInString(str, variables) {
- 		if (typeof str === 'string') {
- 			var matches = str.match(/\${.*?}|%{.*?}|✨{.*?}/g);
- 			if (matches) {
- 				matches.forEach(function(match) {
- 					var keyParts = match.replace(/\$\{|\%\{|\✨\{|\}|\(\)/g, '').split(':');
-					var variableKey =  keyParts[1] ?  keyParts[1] : keyParts[0];
+	function resolveVariablesInString(str, variables) {
+		if (typeof str === 'string') {
+			var matches = str.match(/\${.*?}|%{.*?}|✨{.*?}/g);
+			if (matches) {
+				matches.forEach(function(match) {
+					var keyParts = match.replace(/\$\{|\%\{|\✨\{|\}|\(\)/g, '').split(':');
+					var variableKey = keyParts[1] ? keyParts[1] : keyParts[0];
 					var sourceData = keyParts[1] ? getData(keyParts[0].trim()) : null;
- 					var variableValue = resolveObjectByKey(sourceData || variables, variableKey);
- 					str = str.replace(match, variableValue);
- 				});
- 			}
- 		}
- 		return str;
- 	}
-		
+					var variableValue = resolveObjectByKey(sourceData || variables, variableKey);
+					str = str.replace(match, variableValue);
+				});
+			}
+		}
+		return str;
+	}
+
 	/**
 	 * @description This function clones an object
 	 *
 	 * @param {object} obj
 	 * @returns {object} copy
-	 */ 
+	 */
 	function cloneObject(obj) {
 		if (null == obj || "object" != typeof obj) return obj;
 		var copy = obj.constructor();
@@ -693,9 +686,9 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {String} name The name your handler is identified by in data-magic-handler
 	 * @param {Function|Object} handler This is either an object with functions or a single function
 	 */
-	function addDataHandler(name, handler){
-		if(!typeof name == 'string') return;
-		switch (typeof handler){
+	function addDataHandler(name, handler) {
+		if (!typeof name == 'string') return;
+		switch (typeof handler) {
 			case 'object':
 				_handler[name] = Object.assign({}, _default['handlerMixin'], handler);
 				break;
@@ -727,7 +720,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 							assignNew(dataset, parent.dataset);
 						}
 						break;
-						
+
 					case "parents":
 						var parent = element.parentElement;
 						while (parent && !parent.classList.contains("HYPE_scene")) {
@@ -735,7 +728,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 							parent = parent.parentElement;
 						}
 						break;
-						
+
 					default:
 						if (entry.indexOf("closest(") === 0 && entry.indexOf(")") === entry.length - 1) {
 							var content = entry.substring(8, entry.length - 1);
@@ -755,7 +748,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		}
 		return dataset;
 	}
-	
+
 	/**
 	 * This function only assigns values from source if they are not present in target
 	 *
@@ -770,7 +763,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		}
 	}
 
-	
+
 	/**
 	 * Helper to determine if an object is reactive by checking __isReactive.
 	 *
@@ -780,7 +773,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	function isReactive(obj) {
 		return obj.__isReactive;
 	};
-	
+
 	/**
 	 * This function makes an object reactive and fires a callback on set operations
 	 *
@@ -788,9 +781,9 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {Function} callback This is function that should be called
 	 * @return Returns the object as a proxy
 	 */
-	function enableReactiveObject (obj, callback) {
+	function enableReactiveObject(obj, callback) {
 		if (isReactive(obj)) return obj;
-		
+
 		const handler = {
 			get(target, key, receiver) {
 				const result = Reflect.get(target, key, receiver);
@@ -801,7 +794,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			},
 			set(target, key, value, receiver) {
 				const result = Reflect.set(target, key, value, receiver);
-				if(key !== '__isReactive') callback(key, value, target, receiver);
+				if (key !== '__isReactive') callback(key, value, target, receiver);
 				return result;
 			},
 		};
@@ -813,7 +806,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		});
 		return proxy;
 	}
-	
+
 	/**
 	 * This function makes an object non-reactive
 	 *
@@ -822,7 +815,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 */
 	function disableReactiveObject(obj) {
 		if (!isReactive(obj)) return obj;
-	
+
 		const result = {};
 		for (const key in obj) {
 			if (obj.hasOwnProperty(key)) {
@@ -830,15 +823,15 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 				if (typeof value === 'object') {
 					result[key] = disableReactiveObject(value);
 				} else {
-					if(key !== '__isReactive') result[key] = value;
+					if (key !== '__isReactive') result[key] = value;
 				}
 			}
 		}
 		return result;
 	}
-	
-	
-	
+
+
+
 	/**
 	 * This function creates another function that can be used to loop through a set of steps. 
 	 * This could be useful, for example, in creating animations or a set of instructions that need to be followed in order.
@@ -861,34 +854,34 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 				steps.push(step);
 			}
 		});
-		
+
 		return function(n) {
-			n = n == undefined? 0 : n;
+			n = n == undefined ? 0 : n;
 			if (typeof n === "string") i = n = parseInt(n);
-			
+
 			if (i >= steps.length) i = i % steps.length;
 			if (i < 0) i = steps.length + (i % steps.length);
-			
+
 			let step = steps[i];
 			i += n;
-			
+
 			if (typeof step === "function") step = step();
-		
-			switch (typeof callback){
+
+			switch (typeof callback) {
 				case "function":
 					callback(step);
 					break;
-	
+
 				case "object":
 					if (key) object[key] = step;
 					break;
-			} 
+			}
 			return step;
 		};
 	}
-	
-	
-	
+
+
+
 	/**
 	 * Create a debounced function that delays invoking `fn` until after `delay` milliseconds have elapsed since the last time the debounced function was invoked.
 	 *
@@ -915,23 +908,23 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {Element} element
 	 * @param {Event} event
 	 */
-	function HypeDocumentLoad (hypeDocument, element, event) {
-		
+	function HypeDocumentLoad(hypeDocument, element, event) {
+
 		/**
-	 	* This function allows to refresh the data in the current scene.
-	 	*
-	 	* This function is useful when you want to refresh the data of the current scene.
-	 	* It will refresh the data of the scene element and all its descendants.
-	 	*
-	 	* If you want to refresh the data of a specific element, use the function hypeDocument.refreshElement.
-	 	* If you want to refresh the data of all descendant of a given element, use the function hypeDocument.refreshDescendants.
-	 	*
-	 	* @param {HTMLDivElement} element The element (including descendants) to refresh. This defaults to the scene element.
-	 	*/
-		hypeDocument.refresh = function(element){
+		 * This function allows to refresh the data in the current scene.
+		 *
+		 * This function is useful when you want to refresh the data of the current scene.
+		 * It will refresh the data of the scene element and all its descendants.
+		 *
+		 * If you want to refresh the data of a specific element, use the function hypeDocument.refreshElement.
+		 * If you want to refresh the data of all descendant of a given element, use the function hypeDocument.refreshDescendants.
+		 *
+		 * @param {HTMLDivElement} element The element (including descendants) to refresh. This defaults to the scene element.
+		 */
+		hypeDocument.refresh = function(element) {
 			refresh(this, element || document.getElementById(this.currentSceneId()));
 		}
-		
+
 		/**
 		 * This function allows to refresh the data in the current scene.
 		 * This function is debounced by requestAnimationFrame.
@@ -939,17 +932,17 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		 * @param {HTMLDivElement} element The element (including descendants) to refresh. This defaults to the scene element.
 		 */
 		hypeDocument.refreshDebounced = debounceByRequestFrame(hypeDocument.refresh);
-				
+
 
 		/**
 		 * This function allows to refresh the data of all descendant of a given element
 		 *
 		 * @param {HTMLDivElement} element The element to start the descendants refresh. This defaults to the scene element.
 		 */
-		hypeDocument.refreshDescendants = function(element){
+		hypeDocument.refreshDescendants = function(element) {
 			refreshDescendants(this, element || document.getElementById(this.currentSceneId()));
 		}
-		
+
 		/**
 		 * This function allows to refresh the data of all descendant of a given element.
 		 * This function is debounced by requestAnimationFrame.
@@ -957,14 +950,14 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		 * @param {HTMLDivElement} element The element to start the descendants refresh. This defaults to the scene element.
 		 */
 		hypeDocument.refreshDescendantsDebounced = debounceByRequestFrame(hypeDocument.refreshDescendants);
-				
+
 
 		/**
 		 * This function allows to refresh a specific element
 		 *
 		 * @param {HTMLDivElement} element The element to refresh.
 		 */
-		hypeDocument.refreshElement = function(element){
+		hypeDocument.refreshElement = function(element) {
 			refreshElement(this, element);
 		}
 
@@ -975,13 +968,13 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		 * @param {HTMLDivElement} element The element to refresh.
 		 */
 		hypeDocument.refreshElementDebounced = debounceByRequestFrame(hypeDocument.refreshElement);
-				
+
 
 		/**
 		 * This function allows to disable observer based refresh calls when updating a data-magic-* attribute
 		 *
 		 */
-		hypeDocument.disableChangeObserver = function(){
+		hypeDocument.disableChangeObserver = function() {
 			disableChangeObserver(this);
 		}
 
@@ -989,7 +982,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		 * This function allows to (re)enable observer based refresh calls when updating a data-magic-* attribute
 		 *
 		 */
-		hypeDocument.enableChangeObserver = function(){
+		hypeDocument.enableChangeObserver = function() {
 			enableChangeObserver(this);
 		}
 
@@ -999,18 +992,18 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		 * @param {HTMLDivElement} element The element to check
 		 * @param {string} content The content to set in innerHTML if it differs
 		 */
-		hypeDocument.setContentIfNecessary = function(element, content){
+		hypeDocument.setContentIfNecessary = function(element, content) {
 			if (element.innerHTML != content) {
 				element.innerHTML = content;
 			}
 		}
-		
+
 		/**
 		 * This function enables a refresh when customData is changed (debounce, beta)
 		 *
 		 */
-		hypeDocument.enableReactiveCustomData = function(){
-			hypeDocument.customData = enableReactiveObject(hypeDocument.customData, _default['reactiveCustomDataHandler'] || function(key, value){
+		hypeDocument.enableReactiveCustomData = function() {
+			hypeDocument.customData = enableReactiveObject(hypeDocument.customData, _default['reactiveCustomDataHandler'] || function(key, value) {
 				if (hypeDocument._refreshRequested) return;
 				hypeDocument._refreshRequested = true;
 				requestAnimationFrame(function() {
@@ -1019,41 +1012,41 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 				});
 			});
 		}
-		
-		
+
+
 		/**
 		 * This function disables reactive customData (beta)
 		 *
 		 */
-		hypeDocument.disableReactiveCustomData = function(){
+		hypeDocument.disableReactiveCustomData = function() {
 			hypeDocument.customData = disableReactiveObject(hypeDocument.customData);
 		}
-		
+
 		/* 
 		new since 1.3.5: if _default('customData') is set it is used 
 		to init hypeDocument.customData
 		*/
-		if ( _default['customData']) {
+		if (_default['customData']) {
 			hypeDocument.customData = _default['customData'];
 		}
-		
+
 		/*
 		new since 1.3.6: if _default['makeCustomDataReactive'] is set it
 		will trigger hypeDocument.refresh whenever custom data is updated
 		*/
-		if ( _default['refreshOnCustomData']) {
+		if (_default['refreshOnCustomData']) {
 			hypeDocument.enableReactiveCustomData();
 		}
-		
+
 		/*
 		Create a change observer for the hypeDocument and element, and enables the change observer.
 		*/
-		if (!_isHypeIDE){
+		if (!_isHypeIDE) {
 			createChangeObserver(hypeDocument, element);
 			enableChangeObserver(hypeDocument);
 		}
 	}
-	
+
 	/**
 	 * HypeScenePrepareForDisplay is called when the scene is about to be displayed.
 	 *
@@ -1061,7 +1054,7 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {Element} element
 	 * @param {Event} event
 	 */
-	function HypeScenePrepareForDisplay (hypeDocument, element, event) {
+	function HypeScenePrepareForDisplay(hypeDocument, element, event) {
 		disableChangeObserver(hypeDocument);
 		refresh(hypeDocument, element, event);
 	}
@@ -1073,11 +1066,11 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {Element} element
 	 * @param {Event} event
 	 */
-	function HypeSceneLoad (hypeDocument, element, event) {
+	function HypeSceneLoad(hypeDocument, element, event) {
 		refresh(hypeDocument, element, event);
 		enableChangeObserver(hypeDocument);
 	}
-	
+
 	/**
 	 * HypeSceneUnload is called when the scene is unloaded.
 	 *
@@ -1085,65 +1078,55 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * @param {Element} element
 	 * @param {Event} event
 	 */
-	function HypeSceneUnload (hypeDocument, element, event) {
+	function HypeSceneUnload(hypeDocument, element, event) {
 		disableChangeObserver(hypeDocument);
 	}
 
 	/* setup callbacks */
-	if("HYPE_eventListeners" in window === false) { window.HYPE_eventListeners = Array();}
-	window.HYPE_eventListeners.push({"type":"HypeDocumentLoad", "callback": HypeDocumentLoad});
-	window.HYPE_eventListeners.push({"type":"HypeScenePrepareForDisplay", "callback": HypeScenePrepareForDisplay});
-	window.HYPE_eventListeners.push({"type":"HypeSceneLoad", "callback": HypeSceneLoad});
-	window.HYPE_eventListeners.push({"type":"HypeSceneUnload", "callback": HypeSceneUnload});
-	
+	if ("HYPE_eventListeners" in window === false) { window.HYPE_eventListeners = Array(); }
+	window.HYPE_eventListeners.push({ "type": "HypeDocumentLoad", "callback": HypeDocumentLoad });
+	window.HYPE_eventListeners.push({ "type": "HypeScenePrepareForDisplay", "callback": HypeScenePrepareForDisplay });
+	window.HYPE_eventListeners.push({ "type": "HypeSceneLoad", "callback": HypeSceneLoad });
+	window.HYPE_eventListeners.push({ "type": "HypeSceneUnload", "callback": HypeSceneUnload });
+
 	/* run in IDE */
-	if (_isHypeIDE){
-		
+	if (_isHypeIDE) {
+
 		/*
-		The above code sets up the HypeDocumentIDE variable to be used in the scene editor.
+		The following code sets up the HypeDocumentIDE variable to be used in the scene editor.
 		This will allow the scene editor to use some of the functions (from the original hypeDocument)
 		that are not available in the scene editor.
 		
 		One such function is the "resourcesFolderURL()" function. This is useful for accessing resources (images, videos, etc.) that
 		are contained in a folder in the scene editor. It can also be used for accessing custom functions that are not available in the scene editor.
 		*/
-		_hypeDocumentIDE = new Proxy({ 
-			getElementProperty: function(element, property){
+		_hypeDocumentIDE = new Proxy({
+			getElementProperty: function(element, property) {
 				return element.style.getPropertyValue(property) || null;
 			},
-			setElementProperty: function(element, property, value){
-				if (value) switch (property){
-					case 'background-image':  value = 'url('+value+')'; break;
+			setElementProperty: function(element, property, value) {
+				if (value) switch (property) {
+					case 'background-image':
+						value = 'url(' + value + ')';
+						break;
 				}
 				element.style.setProperty(property, value, 'important');
 			},
-			documentId: function(){
+			documentId: function() {
 				return 'HypeSceneEditor';
 			},
-			resourcesFolderURL: function(){
+			resourcesFolderURL: function() {
 				return _default['resourcesFolderNameForPreview'] || window.location.href.replace(/\/$/, '')
 			},
 		}, {
 			get: function(obj, prop) {
-				if (prop === 'customData') return _default['customDataForPreview'] ||  _default['customData'] || {};
+				if (prop === 'customData') return _default['customDataForPreview'] || _default['customData'] || {};
 				return obj[prop];
 			},
 		});
 
-		/* 
-		This code resets the entire document. It first unloads all handlers that have unload functions
-		then reloads the entire document. The unload functions are called before the document is reloaded
-		with its original handlers.
-		*/
-		var temp = _handler;
-		_handler= {};
-		for (var key in temp) {
-			if (temp[key].DataMagicUnload) _handler[key] = { DataMagicPrepareForDisplay: temp[key].DataMagicUnload }
-		}
-		HypeDocumentLoad(_hypeDocumentIDE, document.documentElement);
-		_handler = temp;
-				
 		/* fire fake document load event for IDE */
+		if (_debug) console.log(_extensionName + ': HypeDocumentLoad (extending _hypeDocumentIDE)');
 		HypeDocumentLoad(_hypeDocumentIDE, document.documentElement);
 
 		/*
@@ -1166,32 +1149,32 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 		we don't end up in an infinite loop.
 		*/
 		var refreshObserver = new MutationObserver(function(mutations) {
-			mutations.forEach(function (mutation) {
+			mutations.forEach(function(mutation) {
 				var element = mutation.target;
 				if (mutation.type === 'attributes') {
 
-					if (element.parentNode && mutation.attributeName == 'contenteditable'){
-						
-						/* handle edits on rectangles with user set data-magic-key in the identity HTML attributes */
-						if(element.parentNode.hasAttribute('data-magic-key')){
-							if(element.getAttribute('contenteditable') == 'false' && mutation.oldValue =='true'){
-								if (_debug) console.log(_extensionName+': innerHTML rebuild (after edit)');
+					if (element.parentNode && mutation.attributeName == 'contenteditable') {
+
+						/* handle edits on rectangles with user set data-magic-key in the identity HTML attributes*/
+						if (element.parentNode.hasAttribute('data-magic-key')) {
+							if (element.getAttribute('contenteditable') == 'false' && mutation.oldValue == 'true') {
+								if (_debug) console.log(_extensionName + ': innerHTML rebuild (after edit)');
 								/* refresh the preview after edit */
-								setTimeout(function(){
+								setTimeout(function() {
 									element.parentNode.removeAttribute('magic-edit');
 									refreshElement(_hypeDocumentIDE, element.parentNode);
 								}, 1);
-								
+
 							} else {
-								if (_debug) console.log(_extensionName+': innerHTML purge (before edit)');
+								if (_debug) console.log(_extensionName + ': innerHTML purge (before edit)');
 								/* add preview to innerHTML when double clicked */
-								element.parentNode.setAttribute('magic-edit','preview');
-								setTimeout(function(){
+								element.parentNode.setAttribute('magic-edit', 'preview');
+								setTimeout(function() {
 									var branch = findMagicAttribute(element.parentNode, 'data-magic-branch');
 									var placeholder = '<!-- Hype Data magic: This is only a preview placeholder and edits are ignored!';
-									if (branch) placeholder += ' This key resides on the branch "'+branch+'"';
+									if (branch) placeholder += ' This key resides on the branch "' + branch + '"';
 									placeholder += ' -->';
-									element.innerHTML = placeholder + "\n"+element.parentNode.getAttribute('data-magic-key');
+									element.innerHTML = placeholder + "\n" + element.parentNode.getAttribute('data-magic-key');
 								}, 1);
 							}
 							return;
@@ -1199,24 +1182,24 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 
 						/* handle edits on rectangles that contain data-magic-keys but are not handled by previous block */
 						if (element.parentNode.querySelectorAll('[data-magic-key]').length) {
-							if(element.getAttribute('contenteditable') == 'false' && mutation.oldValue =='true'){
-								if (_debug) console.log(_extensionName+': innerHTML rebuild included magic keys (after edit)');
+							if (element.getAttribute('contenteditable') == 'false' && mutation.oldValue == 'true') {
+								if (_debug) console.log(_extensionName + ': innerHTML rebuild included magic keys (after edit)');
 								/* refresh the preview after edit */
-								setTimeout(function(){
+								setTimeout(function() {
 									element.parentNode.removeAttribute('magic-edit');
 									var elms = element.parentNode.querySelectorAll('[data-magic-key]');
-									elms.forEach(function(elm){
+									elms.forEach(function(elm) {
 										refreshElement(_hypeDocumentIDE, elm);
 									});
 								}, 1);
 
 							} else {
-								if (_debug) console.log(_extensionName+': innerHTML purge included magic keys (before edit)');
-								element.parentNode.setAttribute('magic-edit','innerHTML');
+								if (_debug) console.log(_extensionName + ': innerHTML purge included magic keys (before edit)');
+								element.parentNode.setAttribute('magic-edit', 'innerHTML');
 								/* substitute keys with the key identifier while editing */
-								setTimeout(function(){	
+								setTimeout(function() {
 									var elms = element.parentNode.querySelectorAll('[data-magic-key]');
-									elms.forEach(function(elm){
+									elms.forEach(function(elm) {
 										elm.innerHTML = elm.getAttribute('data-magic-key');
 									});
 								}, 1);
@@ -1224,86 +1207,105 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 							return;
 						}
 					}
-					
-				} else{
 
-					if (_debug) console.log(_extensionName+': unmapped mutation', mutation);
-				}	
+				} else {
+
+					if (_debug) console.log(_extensionName + ': unmapped mutation', mutation);
+				}
 			});
 		});
 
-		refreshObserver.observe(document.documentElement, { 
+		refreshObserver.observe(document.documentElement, {
 			attributes: true,
 			attributeOldValue: true,
-			attributeFilter:['contenteditable'],
+			attributeFilter: ['contenteditable'],
 			subtree: true,
 		});
-		
-		/*
-		
-		Here we are using a feature called MutationObserver. This feature allows us to detect changes that have been made to the DOM (HTML). The MutationObserver has a callback function (the function inside the parentheses) that is called whenever there is a change to the DOM. The callback has an argument called mutations.
-		
-		The mutations object contains all of the changes that have been made to the DOM. We can loop through the mutations object and check what kind of changes have been made. In our case, we're interested in two types of changes:
-		
-		1) Changes to the attributes of an element. For example, if we change the data-hype-id attribute of an element, we want to know about it.
-		2) Changes to the innerHTML of the HypeMainContentDiv. This is how we know when the Hype has refreshed and changes the page.
-		
-		Once we've detected that a change has been made, we need to update the magic-edit attributes on all of the elements in the document. We do this by calling the refresh Debounced function (which we defined earlier). This function will loop through all of the elements in the document and update the magic-edit attributes.
-		
-		*/
-		var observer = new MutationObserver(function(mutations) {
-			if (refreshDebounced.timeout) return;
-			var attrUpdate = false;
-			var pageUpdate = mutations.length == 2 && mutations[0].target.id == 'HypeMainContentDiv';
-			if (!pageUpdate) {
-				var i = 0;
-				while (i < mutations.length && !attrUpdate) {
-					if (mutations[i].type === 'attributes' && mutations[i].attributeName.match(/^data\-/)) {
-						attrUpdate = true;
-					} else {
-						i++;
-					}
-				}
-			}
-			if (attrUpdate || pageUpdate) {
-				document.querySelectorAll('*[magic-edit]').forEach(function (el) {
-					el.removeAttribute('magic-edit');
-				});
-				refreshDebounced(_hypeDocumentIDE, document.documentElement);
-			}
-		});
-		
-		observer.observe(document.documentElement, {
-			characterData: false,
-			attributes: true,
+
+		/* handle updates in page like duplication and copy & paste */
+		var _debounceInterval;
+		var childListObserver = new MutationObserver(function(mutations) {
+			if (_debounceInterval) return;
+			if (mutations.length != 2) return;
+			if (mutations[0].target.id != 'HypeMainContentDiv') return;
+			_debounceInterval = setTimeout(function() {
+				if (_debug) console.log(_extensionName + ': child list change (copy & paste or duplication)');
+				_debounceInterval = null;
+				refresh(_hypeDocumentIDE, document.documentElement);
+			}, 1);
+		})
+
+		childListObserver.observe(document.documentElement, {
 			childList: true,
-			subtree: true
+			subtree: true,
 		});
 
-		
+		/* handle updates on page while in same scene */
+		_updates = {};
+		var updateObserver = new MutationObserver(function(mutations) {
+			mutations.forEach(function(mutation) {
+				var currentValue = mutation.target.getAttribute(mutation.attributeName);
+				if (currentValue && mutation.oldValue == currentValue && currentValue.indexOf('data-magic') != -1) {
+					var id = mutation.target.getAttribute('hypeobjectid');
+					if (_updates[id]) return;
+					_updates[id] = setTimeout(function() {
+						if (_debug) console.log(_extensionName + ': rebuild after Hype refresh', mutation.target.id);
+						refreshElement(_hypeDocumentIDE, mutation.target);
+						delete(_updates[id]);
+					}, 1);
+				}
+			});
+		})
+
+		updateObserver.observe(document.documentElement, {
+			attributes: true,
+			attributeOldValue: true,
+			attributeFilter: ['hypeattributelastkeysplist'],
+			subtree: true,
+		});
+
 		/* setup after dom has loaded first time */
 		window.addEventListener("DOMContentLoaded", function(event) {
-			if (_debug) console.log(_extensionName+': DOMContentLoaded');
-			
+			if (_debug) console.log(_extensionName + ': DOMContentLoaded');
+
 			/* strip content after bubbled "blur" hence focusout */
 			document.addEventListener("focusout", function(event) {
-				if(!event.target.parentNode.hasAttribute('magic-edit')) return;
-				if(!event.target.hasAttribute('contenteditable')) return;
-				
-				if(event.target.parentNode.hasAttribute('data-magic-key')){
-					if(event.target) event.target.innerHTML = '';
+				if (!event.target.parentNode.hasAttribute('magic-edit')) return;
+				if (!event.target.hasAttribute('contenteditable')) return;
+
+				if (event.target.parentNode.hasAttribute('data-magic-key')) {
+					if (event.target) event.target.innerHTML = '';
 					return;
 				}
-				
-				if(event.target.parentNode.getAttribute('magic-edit') == 'innerHTML'){
+
+				if (event.target.parentNode.getAttribute('magic-edit') == 'innerHTML') {
 					var elms = event.target.querySelectorAll('[data-magic-key]');
 					if (!elms.length) return;
-					elms.forEach(function(elm){
+					elms.forEach(function(elm) {
 						elm.innerHTML = '';
 					});
 					return;
-				}	
+				}
 			});
+
+			/* monitor visibility of scene in Hype IDE - Thanks for the tip @jonathan */
+			document.addEventListener("visibilitychange", function(event) {
+				if (document.hidden) {
+					if (_debug) console.log(_extensionName + ': Page hidden');
+				} else {
+					if (_debug) console.log(_extensionName + ': Page visible');
+					refresh(_hypeDocumentIDE, document.documentElement);
+				}
+			}, false);
+
+			/* initial setup with slight delay */
+			setTimeout(function() {
+				if (_debug) console.log(_extensionName + ': initial refresh');
+				refresh(_hypeDocumentIDE, document.documentElement);
+				if (_debug) console.log(_extensionName + ': changeObserver');
+				createChangeObserver(_hypeDocumentIDE, document.documentElement);
+				enableChangeObserver(_hypeDocumentIDE);
+			}, 1);
 
 			/* 
 			This code inserts two CSS rules into the first stylesheet on the page. The first CSS rule is applied to all elements with the attribute [contenteditable="true"] that also have a descendant element with the attribute [data-magic-key]. This CSS rule makes all elements with those attributes have an opacity of 0.5.
@@ -1312,38 +1314,38 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 			
 			The third rule  is applied to all elements with the attribute [data-magic-key]:after. This CSS rule is used to style a pseudo-element that is generated by the [data-magic-key] attribute and adds a 1px border around the element.
 			*/
-			var highlightDataMagic = _default['highlightDataMagic']? '[data-magic-key]::before' : '[magic-edit]::before';
-			document.styleSheets[0].insertRule('[contenteditable="true"] [data-magic-key], [magic-edit="preview"] [contenteditable="true"]  {opacity:0.5}',0);
-			
-			document.styleSheets[0].insertRule(highlightDataMagic+' {position: absolute; content: "Data Magic";  z-index: 10; top: -16px; left: 0px; height: 15px; display: flex; align-items: center; justify-content: center; font: 8px Arial; color: white; background: #75A4EA; border-top-right-radius: 0.2rem; border-top-left-radius: 0.2rem; padding: 0.5rem; box-sizing: border-box;}',0);
-			
-			if (_default['highlightDataMagic']) document.styleSheets[0].insertRule('[data-magic-key]:after {content: " "; position: absolute; z-index: -1; top: 0px; left: 0px; right: 0px; bottom: 0px; border: 1px solid #75A4EA;}',0);
+			var highlightDataMagic = _default['highlightDataMagic'] ? '[data-magic-key]::before' : '[magic-edit]::before';
+			document.styleSheets[0].insertRule('[contenteditable="true"] [data-magic-key], [magic-edit="preview"] [contenteditable="true"]  {opacity:0.5}', 0);
+
+			document.styleSheets[0].insertRule(highlightDataMagic + ' {position: absolute; content: "Data Magic";  z-index: 10; top: -16px; left: 0px; height: 15px; display: flex; align-items: center; justify-content: center; font: 8px Arial; color: white; background: #75A4EA; border-top-right-radius: 0.2rem; border-top-left-radius: 0.2rem; padding: 0.5rem; box-sizing: border-box;}', 0);
+
+			if (_default['highlightDataMagic']) document.styleSheets[0].insertRule('[data-magic-key]:after {content: " "; position: absolute; z-index: -1; top: 0px; left: 0px; right: 0px; bottom: 0px; border: 1px solid #75A4EA;}', 0);
 
 			window.getSelection().removeAllRanges();
 		});
 	}
-	 
-	 /**
-	  * @typedef {Object} HypeDataMagic
-	  * @property {String} version Version of the extension
-	  * @property {Function} setData This function allows to set data by passing in an object. An optional data source name can also be used (name defaults to "shared")
-	  * @property {Function} getData This function allows to get the data for a specific data source. If no data source name is supplied it defaults to "shared"
-	  * @property {Function} refresh This function allows force a refresh on all Hype document from the window level. You can also pass in a specific hypeDocument object to limit the scope.
-	  * @property {Function} setDefault This function allows to set a default value (see function description)
-	  * @property {Function} getDefault This function allows to get a default value
-	  * @property {Function} addDataHandler This function allows to define your own data handler either as an object with functions or a single function
-	  * @property {Function} resolveObjectByKey This low level function returns resolves an object based on a string key notation similar to actual code and returns the value or branch if successful. You can also use an array of strings as the key
-	  * @property {Function} resolveKeyToArray This low level function returns an array resolved based on a string key notation similar to actual code. Given an array as key it works recursive while resolving the input
-	  * @property {Function} resolveVariablesInString This low level function returns a string with all variables resolved. It can also be used to resolve variables in a string.
-	  * @property {Function} resolveVariablesInObject This low level function returns an object with all variables resolved. It can also be used to resolve variables in an object.
-	  * @property {Function} cloneObject This low level function returns a clone of an object.
-	  * @property {Function} enableReactiveObject This low level function enables reactive object.
-	  * @property {Function} disableReactiveObject This low level function disables reactive object.
-	  * @property {Function} createSequence This helper function factory creates a function that returns the next item from a sequence on each call.
-	  * @property {Function} debounceByRequestFrame This helper function returns a debounced function.
-	  */
+
+	/**
+	 * @typedef {Object} HypeDataMagic
+	 * @property {String} version Version of the extension
+	 * @property {Function} setData This function allows to set data by passing in an object. An optional data source name can also be used (name defaults to "shared")
+	 * @property {Function} getData This function allows to get the data for a specific data source. If no data source name is supplied it defaults to "shared"
+	 * @property {Function} refresh This function allows force a refresh on all Hype document from the window level. You can also pass in a specific hypeDocument object to limit the scope.
+	 * @property {Function} setDefault This function allows to set a default value (see function description)
+	 * @property {Function} getDefault This function allows to get a default value
+	 * @property {Function} addDataHandler This function allows to define your own data handler either as an object with functions or a single function
+	 * @property {Function} resolveObjectByKey This low level function returns resolves an object based on a string key notation similar to actual code and returns the value or branch if successful. You can also use an array of strings as the key
+	 * @property {Function} resolveKeyToArray This low level function returns an array resolved based on a string key notation similar to actual code. Given an array as key it works recursive while resolving the input
+	 * @property {Function} resolveVariablesInString This low level function returns a string with all variables resolved. It can also be used to resolve variables in a string.
+	 * @property {Function} resolveVariablesInObject This low level function returns an object with all variables resolved. It can also be used to resolve variables in an object.
+	 * @property {Function} cloneObject This low level function returns a clone of an object.
+	 * @property {Function} enableReactiveObject This low level function enables reactive object.
+	 * @property {Function} disableReactiveObject This low level function disables reactive object.
+	 * @property {Function} createSequence This helper function factory creates a function that returns the next item from a sequence on each call.
+	 * @property {Function} debounceByRequestFrame This helper function returns a debounced function.
+	 */
 	var HypeDataMagic = {
-		version: '1.3.6',
+		version: '1.3.7',
 		'setData': setData,
 		'getData': getData,
 		'refresh': refreshFromWindowLevel,
@@ -1368,5 +1370,5 @@ if("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function () {
 	 * return {HypeGlobalBehavior}
 	 */
 	return HypeDataMagic;
-	
+
 })();
