@@ -4,6 +4,5 @@
     "author": "Max Ziebell",
     "main":	"HypeDataMagic.js",
     "license": "MIT",
-    "version": "1.3.4",
     "dependencies": {}
 }
