@@ -1,5 +1,5 @@
 /*!
-Hype DataMagic 1.3.7
+Hype DataMagic 1.3.8
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -34,6 +34,9 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 *       Added inline syntax for variables as source:key, add %{} and (sparkles-emoji){} options for variable names,
 *       Refactored observer in IDE portion, added plenty of comments to code
 * 1.3.7 Reverted the observer in IDE portion (only affects preview in IDE, fixing quirks)
+* 1.3.8 Removed reactivity in favor of Hype Reactive Content and added compatibility, 
+*       Removed createSequence, find it at https://gist.github.com/worldoptimizer/ef38b989bbe76f219c77d2aba1cd9c68
+*       Assigning customData is now done with assign instead of overwriting it
 *       
 */
 if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
@@ -763,125 +766,6 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 		}
 	}
 
-
-	/**
-	 * Helper to determine if an object is reactive by checking __isReactive.
-	 *
-	 * @param {Object} obj - The object to check.
-	 * @returns {boolean} - True if the object is reactive, false otherwise.
-	 */
-	function isReactive(obj) {
-		return obj.__isReactive;
-	};
-
-	/**
-	 * This function makes an object reactive and fires a callback on set operations
-	 *
-	 * @param {Object} obj This the object that should be made reactive
-	 * @param {Function} callback This is function that should be called
-	 * @return Returns the object as a proxy
-	 */
-	function enableReactiveObject(obj, callback) {
-		if (isReactive(obj)) return obj;
-
-		const handler = {
-			get(target, key, receiver) {
-				const result = Reflect.get(target, key, receiver);
-				if (typeof result === 'object') {
-					return enableReactiveObject(result, callback);
-				}
-				return result;
-			},
-			set(target, key, value, receiver) {
-				const result = Reflect.set(target, key, value, receiver);
-				if (key !== '__isReactive') callback(key, value, target, receiver);
-				return result;
-			},
-		};
-		const proxy = new Proxy(obj, handler);
-		Object.defineProperty(proxy, '__isReactive', {
-			value: true,
-			enumerable: false,
-			configurable: false,
-		});
-		return proxy;
-	}
-
-	/**
-	 * This function makes an object non-reactive
-	 *
-	 * @param {Object} obj This the object that should be made non-reactive
-	 * @return Returns the object as a non-reactive object
-	 */
-	function disableReactiveObject(obj) {
-		if (!isReactive(obj)) return obj;
-
-		const result = {};
-		for (const key in obj) {
-			if (obj.hasOwnProperty(key)) {
-				const value = obj[key];
-				if (typeof value === 'object') {
-					result[key] = disableReactiveObject(value);
-				} else {
-					if (key !== '__isReactive') result[key] = value;
-				}
-			}
-		}
-		return result;
-	}
-
-
-
-	/**
-	 * This function creates another function that can be used to loop through a set of steps. 
-	 * This could be useful, for example, in creating animations or a set of instructions that need to be followed in order.
-	 *
-	 * @param {Array} arr - The array of steps to be looped through
-	 * @param {number} i - The index to start at
-	 * @param {function} callback - The function to be called on each step
-	 * @param {string} key - The key to use for the object
-	 * @returns {function} - A function that can be used to loop through the steps
-	 */
-	function createSequence(arr, i, callback, key) {
-		i = i || 0;
-		const steps = [];
-		arr.forEach(step => {
-			if (Array.isArray(step)) {
-				for (let j = 0; j < step[0]; j++) {
-					steps.push(step[1]);
-				}
-			} else {
-				steps.push(step);
-			}
-		});
-
-		return function(n) {
-			n = n == undefined ? 0 : n;
-			if (typeof n === "string") i = n = parseInt(n);
-
-			if (i >= steps.length) i = i % steps.length;
-			if (i < 0) i = steps.length + (i % steps.length);
-
-			let step = steps[i];
-			i += n;
-
-			if (typeof step === "function") step = step();
-
-			switch (typeof callback) {
-				case "function":
-					callback(step);
-					break;
-
-				case "object":
-					if (key) object[key] = step;
-					break;
-			}
-			return step;
-		};
-	}
-
-
-
 	/**
 	 * Create a debounced function that delays invoking `fn` until after `delay` milliseconds have elapsed since the last time the debounced function was invoked.
 	 *
@@ -998,44 +882,15 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 			}
 		}
 
-		/**
-		 * This function enables a refresh when customData is changed (debounce, beta)
-		 *
-		 */
-		hypeDocument.enableReactiveCustomData = function() {
-			hypeDocument.customData = enableReactiveObject(hypeDocument.customData, _default['reactiveCustomDataHandler'] || function(key, value) {
-				if (hypeDocument._refreshRequested) return;
-				hypeDocument._refreshRequested = true;
-				requestAnimationFrame(function() {
-					hypeDocument._refreshRequested = false;
-					hypeDocument.refresh();
-				});
-			});
-		}
-
-
-		/**
-		 * This function disables reactive customData (beta)
-		 *
-		 */
-		hypeDocument.disableReactiveCustomData = function() {
-			hypeDocument.customData = disableReactiveObject(hypeDocument.customData);
-		}
-
 		/* 
 		new since 1.3.5: if _default('customData') is set it is used 
 		to init hypeDocument.customData
 		*/
 		if (_default['customData']) {
-			hypeDocument.customData = _default['customData'];
-		}
-
-		/*
-		new since 1.3.6: if _default['makeCustomDataReactive'] is set it
-		will trigger hypeDocument.refresh whenever custom data is updated
-		*/
-		if (_default['refreshOnCustomData']) {
-			hypeDocument.enableReactiveCustomData();
+			hypeDocument.customData = Object.assign(
+				hypeDocument.customData,
+				_default['customData']
+			)
 		}
 
 		/*
@@ -1209,7 +1064,7 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 					}
 
 				} else {
-
+					
 					if (_debug) console.log(_extensionName + ': unmapped mutation', mutation);
 				}
 			});
@@ -1339,13 +1194,10 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 	 * @property {Function} resolveVariablesInString This low level function returns a string with all variables resolved. It can also be used to resolve variables in a string.
 	 * @property {Function} resolveVariablesInObject This low level function returns an object with all variables resolved. It can also be used to resolve variables in an object.
 	 * @property {Function} cloneObject This low level function returns a clone of an object.
-	 * @property {Function} enableReactiveObject This low level function enables reactive object.
-	 * @property {Function} disableReactiveObject This low level function disables reactive object.
-	 * @property {Function} createSequence This helper function factory creates a function that returns the next item from a sequence on each call.
 	 * @property {Function} debounceByRequestFrame This helper function returns a debounced function.
 	 */
 	var HypeDataMagic = {
-		version: '1.3.7',
+		version: '1.3.8',
 		'setData': setData,
 		'getData': getData,
 		'refresh': refreshFromWindowLevel,
@@ -1358,10 +1210,7 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 		'resolveVariablesInString': resolveVariablesInString,
 		'resolveVariablesInObject': resolveVariablesInObject,
 		'cloneObject': cloneObject,
-		'enableReactiveObject': enableReactiveObject,
-		'disableReactiveObject': disableReactiveObject,
 		/* helper */
-		createSequence: createSequence,
 		debounceByRequestFrame: debounceByRequestFrame,
 	};
 
