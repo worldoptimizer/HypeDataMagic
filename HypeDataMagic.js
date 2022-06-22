@@ -1,5 +1,5 @@
 /*!
-Hype DataMagic 1.3.8
+Hype DataMagic 1.3.9
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -37,6 +37,9 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.3.8 Removed reactivity in favor of Hype Reactive Content and added compatibility, 
 *       Removed createSequence, find it at https://gist.github.com/worldoptimizer/ef38b989bbe76f219c77d2aba1cd9c68
 *       Assigning customData is now done with assign instead of overwriting it
+* 1.3.9 Refactored findMagicAttribute, exposed it as findAttribute,
+*       Added the ability to traverse data-magic-braches further with +,
+*       HypeDataMagic.setData now offers to set a key on a object
 *       
 */
 if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
@@ -227,14 +230,14 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 		var keyParts = trim(element.getAttribute('data-magic-key')).split(':');
 		var key = keyParts[1] ? keyParts[1] : keyParts[0];
 		var inlineSourceName = keyParts[1] ? keyParts[0].trim() : null;
-		var source = inlineSourceName || findMagicAttribute(element, 'data-magic-source') || _default['source'];
+		var source = inlineSourceName || findAttribute(element, 'data-magic-source') || _default['source'];
 
 		var data = (source == 'customData') ? hypeDocument.customData : getData(source);
 
 		// is we have a source proceed
 		if (data) {
 			// look if we have a brach an combine it with our key, only look if no inline source was used
-			var branchkey = keyParts[1] ? '' : findMagicAttribute(element, 'data-magic-branch');
+			var branchkey = keyParts[1] ? '' : findAttribute(element, 'data-magic-branch', true);
 			var branch = branchkey ? resolveObjectByKey(data, branchkey) : data;
 			var branchdata = resolveObjectByKey(branch, key);
 
@@ -473,14 +476,40 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 	/**
 	 * This function allows to set data
 	 *
-	 * @param {Object} data This parameter needs to be an object but it can hold nested values of any type. To use JSON data parse the data before you set it.
-	 * @param {String} source The source is a optional name to store the data. It defaults to the string "shared".
+	 * @param {Object} data This parameter needs to be an object but it can hold nested values of any type. To use JSON data parse the data before you set it. If you want to store a single value, use the key parameter.
+	 * @param {String} source The source is a optional name to store the data. It defaults to the string "shared". If you want to store a single value, use the key parameter.
+	 * @param {String} key The key is a optional name to store the data. It defaults to the string "shared". If you want to store a single value, use the key parameter.
 	 */
-	function setData(data, source) {
+	function setData(data, source, key) {
 		source = source || _default['source'];
-		_data[source] = data;
-		if (_default['refreshOnSetData'] == true) refreshFromWindowLevel();
+		if (key) {
+			if (!_data[source]) _data[source] = {};
+			var objPath = resolveKeyToArray(key);
+			var objKey = objPath.pop();
+			var branch = resolveObjectByKey(_data[source], objPath);
+			if (branch) branch[objKey] = data;
+		} else {
+			_data[source] = data;
+		}
+		if (_default['refreshOnSetData'] == true) {
+			refreshFromWindowLevelDebounced();
+		}
 	}
+	
+	/**
+	  * This function allows to get data
+	  *
+	  * @param {String} source This the name of the data you want to access. It defaults to the string "shared".
+	  * @param {String} key This (optional) key resolves the data given a key
+	  * @return Returns the object Hype Data Magic currently has stored under the given source name.
+	  */
+	 function getData(source, key){
+		 if (_default['sourceRedirect'][source]) return _data[_default['sourceRedirect'][source]] || null;
+		 if (!source) source = _default['source'];
+		 var data = _data[source] || null;
+		 if (data && key) return resolveObjectByKey(data, key);
+		 return data;
+	 }
 
 	/**
 	 * This function allows to refesh the view from the window level using HypeDataMagic.refresh
@@ -492,28 +521,18 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 		if (hypeDocument && hypeDocument.hasOwnProperty('refresh')) {
 			hypeDocument.refresh();
 
-			//refresh all documents
+		//refresh all documents
 		} else if (window.hasOwnProperty('HYPE')) {
 			Object.values(window.HYPE.documents).forEach(function(hypeDocument) {
 				hypeDocument.refresh();
 			});
 		}
 	}
-
+	
 	/**
-	 * This function allows to get data
-	 *
-	 * @param {String} source This the name of the data you want to access. It defaults to the string "shared".
-	 * @param {String} key This (optional) key resolves the data given a key
-	 * @return Returns the object Hype Data Magic currently has stored under the given source name.
+	 * Debounced version of above (internal usage)
 	 */
-	function getData(source, key) {
-		if (_default['sourceRedirect'][source]) return _data[_default['sourceRedirect'][source]] || null;
-		if (!source) source = _default['source'];
-		var data = _data[source] || null;
-		if (data && key) return resolveObjectByKey(data, key);
-		return data;
-	}
+	var refreshFromWindowLevelDebounced = debounceByRequestFrame(refreshFromWindowLevel)
 
 	/**
 	 * This function allows to override a default
@@ -653,25 +672,30 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 		}
 		return copy;
 	}
-
-
+	
 	/**
-	 * This low level function traverses up the DOM tree to find and return a specific attribute. It aborts at the scene element (or window level depending where you start the search).
-	 * This function is currently not exposed to the API, but still documented
+	 * This function finds the value of an attribute on an element or its parents.
+	 * If the attribute value starts with a '+' then it is added to the value of the attribute on the parent.
 	 *
-	 * @param {String} element This the object the key should act on.
-	 * @param {String} attr This is the name of the attribute to search for going up the dom tree.
-	 * @return Returns the current value for a default with a certain key.
+	 * @param {HTMLElement} element - The element to start searching from.
+	 * @param {string} attr - The name of the attribute to search for.
+	 * @param {boolean} allowAdditions - If true, the value of the attribute will be added to the value of the attribute in the parent.
+	 * @returns {string} The value of the attribute.
 	 */
-	function findMagicAttribute(element, attr) {
+	function findAttribute(element, attr, allowAdditions) {
 		if (!element || !element.id) return null;
-		while (element.parentNode && !element.classList.contains('HYPE_scene')) {
-			if (element.hasAttribute(attr)) {
-				return element.getAttribute(attr);
+		var foundValue = '';
+		while (element!==null) {
+			var currentValue = element.getAttribute(attr);
+			if (currentValue) {
+				if (allowAdditions && currentValue.indexOf('+') == 0) {
+					foundValue = currentValue.substr(1) + (foundValue? '.' + foundValue : '');
+				} else {
+					return  currentValue + (foundValue? '.'+ foundValue : '');
+				}
 			}
-			element = element.parentNode;
+			element = element.parentNode.closest('['+attr+']');
 		};
-		return null;
 	}
 
 	/**
@@ -1025,7 +1049,7 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 								/* add preview to innerHTML when double clicked */
 								element.parentNode.setAttribute('magic-edit', 'preview');
 								setTimeout(function() {
-									var branch = findMagicAttribute(element.parentNode, 'data-magic-branch');
+									var branch = findAttribute(element.parentNode, 'data-magic-branch', true);
 									var placeholder = '<!-- Hype Data magic: This is only a preview placeholder and edits are ignored!';
 									if (branch) placeholder += ' This key resides on the branch "' + branch + '"';
 									placeholder += ' -->';
@@ -1186,7 +1210,8 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 	 * @property {Function} setData This function allows to set data by passing in an object. An optional data source name can also be used (name defaults to "shared")
 	 * @property {Function} getData This function allows to get the data for a specific data source. If no data source name is supplied it defaults to "shared"
 	 * @property {Function} refresh This function allows force a refresh on all Hype document from the window level. You can also pass in a specific hypeDocument object to limit the scope.
-	 * @property {Function} setDefault This function allows to set a default value (see function description)
+	 * @property {Function} refresh This function is the same as refresh, but debounced
+		  * @property {Function} setDefault This function allows to set a default value (see function description)
 	 * @property {Function} getDefault This function allows to get a default value
 	 * @property {Function} addDataHandler This function allows to define your own data handler either as an object with functions or a single function
 	 * @property {Function} resolveObjectByKey This low level function returns resolves an object based on a string key notation similar to actual code and returns the value or branch if successful. You can also use an array of strings as the key
@@ -1197,26 +1222,28 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 	 * @property {Function} debounceByRequestFrame This helper function returns a debounced function.
 	 */
 	var HypeDataMagic = {
-		version: '1.3.8',
-		'setData': setData,
-		'getData': getData,
-		'refresh': refreshFromWindowLevel,
-		'setDefault': setDefault,
-		'getDefault': getDefault,
-		'addDataHandler': addDataHandler,
+		version: '1.3.9',
+		setData: setData,
+		getData: getData,
+		refresh: refreshFromWindowLevel,
+		refreshDebounced: refreshFromWindowLevelDebounced,
+		setDefault: setDefault,
+		getDefault: getDefault,
+		addDataHandler: addDataHandler,
 		/* low level */
-		'resolveObjectByKey': resolveObjectByKey,
-		'resolveKeyToArray': resolveKeyToArray,
-		'resolveVariablesInString': resolveVariablesInString,
-		'resolveVariablesInObject': resolveVariablesInObject,
-		'cloneObject': cloneObject,
+		resolveObjectByKey: resolveObjectByKey,
+		resolveKeyToArray: resolveKeyToArray,
+		resolveVariablesInString: resolveVariablesInString,
+		resolveVariablesInObject: resolveVariablesInObject,
+		cloneObject: cloneObject,
+		findAttribute: findAttribute,
 		/* helper */
 		debounceByRequestFrame: debounceByRequestFrame,
 	};
 
 	/** 
 	 * Reveal Public interface to window['HypeDataMagic']
-	 * return {HypeGlobalBehavior}
+	 * return {HypeDataMagic}
 	 */
 	return HypeDataMagic;
 
