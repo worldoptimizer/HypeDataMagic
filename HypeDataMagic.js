@@ -1,5 +1,5 @@
 /*!
-Hype DataMagic 1.3.9
+Hype DataMagic 1.4.0
 copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -40,7 +40,13 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 * 1.3.9 Refactored findMagicAttribute, exposed it as findAttribute,
 *       Added the ability to traverse data-magic-braches further with +,
 *       HypeDataMagic.setData now offers to set a key on a object
-*       
+* 1.4.0 Fixed bug not using branches from inner elements data-magic-key definitions
+*       Added a retrieval bug by adding baseElement to findAttribute limiting the search to a element
+*       Added HypeDataMagic.resolveVariables allowing to resolve variables in objects and strings
+*       Added HypeDataMagic.constructVariablesContext allowing to construct a variables context for resolving variables
+*       Added new default autoVariables allowing to resolve automaticly resolve variables before handlers are called
+*       Added legacy support for handling variables in text and image handlers
+*       Fixed legacy code usage of substr in favor of slice
 */
 if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 
@@ -92,6 +98,7 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 		allowVariables: true,
 		allowDatasets: true,
 		allowMagicSets: true,
+		autoVariables: true,
 		resourcesFolderNameForPreview: '',
 	};
 
@@ -120,11 +127,10 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 		'text': {
 			DataMagicPrepareForDisplay: function(hypeDocument, element, event) {
 				if (element.innerHTML != event.data && hasNoHypeElementsAsChild(element)) {
-					if (_default['allowVariables']) {
-						event.data = resolveVariablesInString(event.data, Object.assign({},
-							_default['variables'] || hypeDocument.customData, { resourcesFolderName: hypeDocument.resourcesFolderURL() },
-							element && _default['allowDatasets'] ? { dataset: resolveDatasetVariables(element) } : null,
-						));
+					// legacy support before autoVariables
+					if (!_default['autoVariables'] && _default['allowVariables']) {
+						var variablesContext = constructVariablesContext(hypeDocument, element);
+						event.data = resolveVariables(event.data, variablesContext);
 					}
 					element.innerHTML = event.data;
 				}
@@ -149,11 +155,10 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 			DataMagicPrepareForDisplay: function(hypeDocument, element, event) {
 				if (typeof event.data == 'string') event.data = { src: event.data };
 				if (!event.data.src) event.data.src = element.dataset.fallbackImage || _default.fallbackImage();
-				if (_default['allowVariables']) {
-					event.data = resolveVariablesInObject(event.data, Object.assign({},
-						_default['variables'] || hypeDocument.customData, { resourcesFolderName: hypeDocument.resourcesFolderURL() },
-						element && _default['allowDatasets'] ? { dataset: resolveDatasetVariables(element) } : null,
-					));
+				// legacy support before autoVariables
+				if (!_default['autoVariables'] && _default['allowVariables']) {
+					var variablesContext = constructVariablesContext(hypeDocument, element);
+					event.data = resolveVariables(event.data, variablesContext);
 				}
 				element.innerHTML = '';
 				if (hypeDocument.getElementProperty(element, 'background-image') != event.data.src) {
@@ -168,6 +173,37 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 				element.style.backgroundRepeat = element.style.backgroundPosition = element.style.backgroundRepeat = '';
 			}
 		}
+	}
+
+	/**
+	 * Resolves variables in a string or an object by delegating to the specific resolve functions.
+	 * 
+	 * @param {string|object} input - The input string or object with variables to resolve.
+	 * @param {object} variables - The variables to use for resolving.
+	 * @returns {string|object} - The input with resolved variables.
+	 */
+	function resolveVariables(input, variables) {
+		if (typeof input === 'string') {
+			return resolveVariablesInString(input, variables);
+		} else if (typeof input === 'object') {
+			return resolveVariablesInObject(input, variables);
+		}
+		return input; // Return the input as is if it's neither a string nor an object.
+	}
+
+	/**
+	 * Constructs the variables context for resolving variables in strings or objects.
+	 * 
+	 * @param {HYPE.documents.HYPEDocument} hypeDocument - The Hype document object.
+	 * @param {HTMLElement} element - The HTML element associated with the current handler.
+	 * @returns {object} - The constructed variables context.
+	 */
+	function constructVariablesContext(hypeDocument, element) {
+		return Object.assign({},
+			_default['variables'] || hypeDocument.customData, // Custom data or default variables
+			{ resourcesFolderName: hypeDocument.resourcesFolderURL() }, // Resources folder URL
+			element && _default['allowDatasets'] ? { dataset: resolveDatasetVariables(element) } : null // Dataset variables if allowed
+		);
 	}
 
 	/**
@@ -237,7 +273,8 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 		// is we have a source proceed
 		if (data) {
 			// look if we have a brach an combine it with our key, only look if no inline source was used
-			var branchkey = keyParts[1] ? '' : findAttribute(element, 'data-magic-branch', true);
+			var branchkey = keyParts[1] ? '' : findAttribute(element, 'data-magic-branch', true, element.closest('[data-magic-source]'));
+			console.log(element.closest('[data-magic-source]'))
 			var branch = branchkey ? resolveObjectByKey(data, branchkey) : data;
 			var branchdata = resolveObjectByKey(branch, key);
 
@@ -249,6 +286,12 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 					if (prefix || append) {
 						branchdata = prefix + branchdata + append;
 					}
+				}
+
+				// new autoVariables feature
+				if (_default['autoVariables'] && _default['allowVariables']) {
+					var variablesContext = constructVariablesContext(hypeDocument, element);
+					branchdata = resolveVariables(branchdata, variablesContext);
 				}
 
 				// construct our event object by creating a new one
@@ -524,7 +567,8 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 		//refresh all documents
 		} else if (window.hasOwnProperty('HYPE')) {
 			Object.values(window.HYPE.documents).forEach(function(hypeDocument) {
-				hypeDocument.refresh();
+				// refresh function check since 1.4.0
+				if (hypeDocument.hasOwnProperty('refresh')) hypeDocument.refresh();
 			});
 		}
 	}
@@ -680,21 +724,25 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 	 * @param {HTMLElement} element - The element to start searching from.
 	 * @param {string} attr - The name of the attribute to search for.
 	 * @param {boolean} allowAdditions - If true, the value of the attribute will be added to the value of the attribute in the parent.
+	 * @param {HTMLElement} baseElement - The element to stop searching at.
 	 * @returns {string} The value of the attribute.
 	 */
-	function findAttribute(element, attr, allowAdditions) {
-		if (!element || !element.id) return null;
+	function findAttribute(element, attr, allowAdditions, baseElement) {
+		if (!element) return null;
 		var foundValue = '';
-		while (element!==null) {
+		while (element !== null) {
 			var currentValue = element.getAttribute(attr);
-			if (currentValue) {
+			// fixed falsy values checks allowing empty strings with 1.4.0
+			if (currentValue !== null) {
 				if (allowAdditions && currentValue.indexOf('+') == 0) {
-					foundValue = currentValue.substr(1) + (foundValue? '.' + foundValue : '');
+					foundValue = currentValue.slice(1) + (foundValue ? '.' + foundValue : '');
 				} else {
 					return  currentValue + (foundValue? '.'+ foundValue : '');
 				}
 			}
 			element = element.parentNode.closest('['+attr+']');
+			// fixed to not surpase a base element if given with 1.4.0
+			if (element && baseElement && !baseElement.contains(element)) element = null;
 		};
 	}
 
@@ -984,7 +1032,7 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 				return element.style.getPropertyValue(property) || null;
 			},
 			setElementProperty: function(element, property, value) {
-				if (value) switch (property) {
+				if (value !== null) switch (property) {
 					case 'background-image':
 						value = 'url(' + value + ')';
 						break;
@@ -1193,12 +1241,25 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 			
 			The third rule  is applied to all elements with the attribute [data-magic-key]:after. This CSS rule is used to style a pseudo-element that is generated by the [data-magic-key] attribute and adds a 1px border around the element.
 			*/
-			var highlightDataMagic = _default['highlightDataMagic'] ? '[data-magic-key]::before' : '[magic-edit]::before';
-			document.styleSheets[0].insertRule('[contenteditable="true"] [data-magic-key], [magic-edit="preview"] [contenteditable="true"]  {opacity:0.5}', 0);
 
-			document.styleSheets[0].insertRule(highlightDataMagic + ' {position: absolute; content: "Data Magic";  z-index: 10; top: -16px; left: 0px; height: 15px; display: flex; align-items: center; justify-content: center; font: 8px Arial; color: white; background: #75A4EA; border-top-right-radius: 0.2rem; border-top-left-radius: 0.2rem; padding: 0.5rem; box-sizing: border-box;}', 0);
+			// Define the base styles for highlightDataMagic
+			var highlightDataMagicBase = _default['highlightDataMagic'] ? '[data-magic-key]::before' : '[magic-edit]::before';
+			var highlightDataMagicStyles = 'position: absolute; content: attr(data-magic-key); z-index: 10; height: 16px; line-height:16px; padding: 3px 5px 3px 5px; top: -16px; left: 0px; text-align: center; font: 9px Arial; color: white; background: #75A4EA; border-top-right-radius: 0.2rem; border-top-left-radius: 0.2rem; box-sizing: border-box;';
 
-			if (_default['highlightDataMagic']) document.styleSheets[0].insertRule('[data-magic-key]:after {content: " "; position: absolute; z-index: -1; top: 0px; left: 0px; right: 0px; bottom: 0px; border: 1px solid #75A4EA;}', 0);
+
+			// Define all your CSS rules in an array
+			var rules = [
+				'[contenteditable="true"] [data-magic-key], [magic-edit="preview"] [contenteditable="true"]  {opacity:0.5}',
+				highlightDataMagicBase + ' {' + highlightDataMagicStyles + '}'
+			];
+
+			// Conditionally add a rule based on _default['highlightDataMagic']
+			if (_default['highlightDataMagic']) {
+				rules.push('[data-magic-key]:after {content: " "; position: absolute; z-index: -1; top: 0px; left: 0px; right: 0px; bottom: 0px; border: 1px solid #75A4EA;}');
+			}
+
+			// Iterate over the rules array and insert each rule into the stylesheet
+			rules.forEach((rule) => document.styleSheets[0].insertRule(rule, 0));
 
 			window.getSelection().removeAllRanges();
 		});
@@ -1211,7 +1272,7 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 	 * @property {Function} getData This function allows to get the data for a specific data source. If no data source name is supplied it defaults to "shared"
 	 * @property {Function} refresh This function allows force a refresh on all Hype document from the window level. You can also pass in a specific hypeDocument object to limit the scope.
 	 * @property {Function} refresh This function is the same as refresh, but debounced
-		  * @property {Function} setDefault This function allows to set a default value (see function description)
+	 * @property {Function} setDefault This function allows to set a default value (see function description)
 	 * @property {Function} getDefault This function allows to get a default value
 	 * @property {Function} addDataHandler This function allows to define your own data handler either as an object with functions or a single function
 	 * @property {Function} resolveObjectByKey This low level function returns resolves an object based on a string key notation similar to actual code and returns the value or branch if successful. You can also use an array of strings as the key
@@ -1219,10 +1280,13 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 	 * @property {Function} resolveVariablesInString This low level function returns a string with all variables resolved. It can also be used to resolve variables in a string.
 	 * @property {Function} resolveVariablesInObject This low level function returns an object with all variables resolved. It can also be used to resolve variables in an object.
 	 * @property {Function} cloneObject This low level function returns a clone of an object.
+	 * @property {Function} findAttribute This low level function returns the value of an attribute on an element or its parents. If the attribute value starts with a '+' then it is added to the value of the attribute on the parent.
+	 * @property {Function} resolveVariables This function resolves variables in an object using resolveVariablesInString recursively and a variables lookup
+	 * @property {Function} constructVariablesContext This function constructs a variables context for resolving variables in an object
 	 * @property {Function} debounceByRequestFrame This helper function returns a debounced function.
 	 */
 	var HypeDataMagic = {
-		version: '1.3.9',
+		version: '1.4.0',
 		setData: setData,
 		getData: getData,
 		refresh: refreshFromWindowLevel,
@@ -1237,6 +1301,9 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 		resolveVariablesInObject: resolveVariablesInObject,
 		cloneObject: cloneObject,
 		findAttribute: findAttribute,
+		/* new in 1.4.0 */
+		resolveVariables: resolveVariables,
+		constructVariablesContext: constructVariablesContext,
 		/* helper */
 		debounceByRequestFrame: debounceByRequestFrame,
 	};
