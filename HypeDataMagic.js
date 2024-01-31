@@ -41,12 +41,14 @@ copyright (c) 2022 Max Ziebell, (https://maxziebell.de). MIT-license
 *       Added the ability to traverse data-magic-braches further with +,
 *       HypeDataMagic.setData now offers to set a key on a object
 * 1.4.0 Fixed bug not using branches from inner elements data-magic-key definitions
-*       Added a retrieval bug by adding baseElement to findAttribute limiting the search to an element
+*       Fixed a retrieval bug by adding baseElement to findAttribute limiting the search to an element
+*       Fixed legacy code usage of substr in favor of slice
 *       Added HypeDataMagic.resolveVariables allowing to resolve variables in objects and strings
 *       Added HypeDataMagic.constructVariablesContext allowing to construct a variables context for resolving variables
 *       Added new default autoVariables allowing to resolve automatically resolve variables before handlers are called
 *       Added legacy support for handling variables in text and image handlers
 *       Fixed legacy code usage of substr in favor of slice
+*       Switched display from Data Magic to key content as suggested by @MarkHunte
 */
 if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 
