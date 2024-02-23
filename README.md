@@ -22,13 +22,15 @@ You're done installing Hype Data Magic <sup>1</sup>.
 
 ### Basic example to set data:
 
-Open Head HTML and add a script section to it `<script></script>`. Then add the following JavaScript command between the tags:
+Open Head HTML and add a script section with the following JavaScript command between the tags:
 
 ``` javascript
-HypeDataMagic.setData({
-	name: 'Max Ziebell',
-	hello: 'world',
-});
+<script>
+	HypeDataMagic.setData({
+		name: 'Max Ziebell',
+		hello: 'world',
+	});
+</script>
 ```
 
 ### Bind data to your Hype document:
