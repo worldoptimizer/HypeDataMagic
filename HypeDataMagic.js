@@ -48,6 +48,7 @@ copyright (c) 2024 Max Ziebell, (https://maxziebell.de). MIT-license
 *       Added new default autoVariables allowing to resolve variables automatically before handlers are called
 *       Added legacy support for handling variables in text and image handlers
 *       Switched display from Data Magic to key content as suggested by @MarkHunte
+* 1.4.1 Removed a leftover console.log from debugging
 */
 if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 
@@ -275,7 +276,6 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 		if (data) {
 			// look if we have a brach an combine it with our key, only look if no inline source was used
 			var branchkey = keyParts[1] ? '' : findAttribute(element, 'data-magic-branch', true, element.closest('[data-magic-source]'));
-			console.log(element.closest('[data-magic-source]'))
 			var branch = branchkey ? resolveObjectByKey(data, branchkey) : data;
 			var branchdata = resolveObjectByKey(branch, key);
 
