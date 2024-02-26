@@ -1,5 +1,5 @@
 /*!
-Hype DataMagic 1.4.0
+Hype DataMagic 1.4.1
 copyright (c) 2024 Max Ziebell, (https://maxziebell.de). MIT-license
 */
 
@@ -1287,7 +1287,7 @@ if ("HypeDataMagic" in window === false) window['HypeDataMagic'] = (function() {
 	 * @property {Function} debounceByRequestFrame This helper function returns a debounced function.
 	 */
 	var HypeDataMagic = {
-		version: '1.4.0',
+		version: '1.4.1',
 		setData: setData,
 		getData: getData,
 		refresh: refreshFromWindowLevel,
